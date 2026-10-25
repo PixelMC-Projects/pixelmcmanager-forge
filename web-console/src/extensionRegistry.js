@@ -1,0 +1,2 @@
+import {usePlatform} from './Platform';
+export function useRegisteredExtensions(preferences){const platform=usePlatform();return (platform.value?.extensions||[]).map(extension=>({...extension,preference:extension.preference||extension.id,page:extension.page||'settings',description:extension.description||'游戏扩展模块',visible:extension.id==='memorialtitles'?!!preferences.titles:true,summary:()=>extension.id==='memorialtitles'?`纪念称号 · ${extension.titles??0} 个称号 · ${extension.players??0} 份档案`:extension.name}));}

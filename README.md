@@ -1,154 +1,49 @@
-# PixelMC Manager
+# PixelMC Manager · Forge
 
-A lightweight Forge 1.20.1 / Java 17 server-side welcome message mod for PixelMC / Vanilla Era.
+[中文](#中文) · [English](#english)
 
-## Environment
+## 中文
 
-- Minecraft 1.20.1
-- Forge 47.3.33
-- Java 17
-- Mod ID: `pixelmcmanager`
-- Server-side only
+把服务器状态、玩家数据和日常管理集中到一个地方。模组可以独立使用，也可以接入常驻网页后台。
 
-## Features
+### 功能
 
-- Configurable join welcome messages
-- Separate first-join and returning-player messages
-- Player login count tracking
-- Total online time tracking
-- Text placeholders
-- `&` color and format codes
-- HEX colors such as `&#64D8FF`
-- Simple two-color gradients
-- `/pixelmcmanager reload`
-- `/pixelmcmanager preview`
-- `/pixelmcmanager` player stats queries
+- 实时查看 TPS、MSPT、内存、在线玩家与维度状态。
+- 记录累计在线时长、登录次数和登录历史，保留离线玩家资料。
+- 配置首次进服问候、回归问候和轮播公告，支持颜色与渐变。
+- 预约关服、维护和空服重启，也可在模组列表变化后安排空服重启。
+- 整合包结束后可归档数据，方便切换查看不同阶段的记录。
+- 通过扩展接入 MemorialTitles 等项目，统一管理入口。
 
-PixelMC Manager does not require client installation. The mod metadata keeps `displayTest="IGNORE_SERVER_VERSION"`.
+### 使用
 
-## Files
+适用于 Minecraft **1.20.1 / Forge**，只需服务端安装。配置文件为 `config/pixelmcmanager.json`。
 
-- Config: `config/pixelmcmanager.json`
-- Player stats: `<world-save-root>/pixelmcmanager/player_stats.json`
+网页后台需单独运行 [Manager Service](manager-service/README.md)，使用 MariaDB 保存数据；游戏停服时后台仍可访问。
 
-Player stats are stored inside the current world save root, not in global `config/` and not in the server root. Total online time is accumulated from real wall-clock milliseconds, not server ticks. Online sessions are checkpointed periodically with `statsAutoSaveSeconds` in `config/pixelmcmanager.json` defaulting to 30 seconds, so an abnormal stop should lose at most the time since the previous checkpoint rather than the whole session.
+## English
 
-When `enabled=false`, welcome messages are skipped, but player stats are still maintained.
+Server monitoring, player records, and everyday administration in one place. Use the mod on its own or connect it to an independently running web service.
 
-## Migration
+### Features
 
-On startup, PixelMC Manager copies legacy files when the new path does not exist:
+- Monitor live TPS, MSPT, memory, players, and dimensions.
+- Keep playtime totals, login counts, login history, and offline player profiles.
+- Customize first-join greetings, returning-player messages, and rotating announcements with colors and gradients.
+- Schedule shutdowns, maintenance, and empty-server restarts, including restarts after mod-list changes.
+- Archive completed modpacks and browse records from earlier seasons.
+- Bring extensions such as MemorialTitles into the same dashboard.
 
-- `config/pixelmcwelcome.json` -> `config/pixelmcmanager.json`
-- `<world-save-root>/pixelmcwelcome/player_stats.json` -> `<world-save-root>/pixelmcmanager/player_stats.json`
+### Usage
 
-Legacy files are not deleted. If both old and new files exist, the new `pixelmcmanager` path is used.
+For Minecraft **1.20.1 / Forge**. Install on the server only. Configuration: `config/pixelmcmanager.json`.
 
-## Commands
+Run [Manager Service](manager-service/README.md) separately for the web dashboard and MariaDB-backed storage. The dashboard stays available while the game server is stopped.
 
-- `/pixelmcmanager reload`
-- `/pixelmcmanager preview`
-- `/pixelmcmanager preview first`
-- `/pixelmcmanager preview returning`
-- `/pixelmcmanager`
-- `/pixelmcmanager logincount`
-- `/pixelmcmanager logincount <player>`
-- `/pixelmcmanager logintime`
-- `/pixelmcmanager logintime <player>`
-- `/pixelmcmanager stopserver <time>`
-- `/pixelmcmanager stopserver cancel`
-- `/pixelmcmanager stopserver status`
-- `/pixelmcmanager maintenance <time>`
-- `/pixelmcmanager maintenance now`
-- `/pixelmcmanager maintenance off`
-- `/pixelmcmanager maintenance status`
-- `/pixelmcmanager audit`
-- `/pixelmcmanager audit last`
-- `/pixelmcmanager audit last <count>`
-- `/pixelmcmanager save`
-- `/pixelmcmanager stats`
+---
 
-Command permission levels are configurable in `config/pixelmcmanager.json`. `reload`, `preview`, player stat queries, audit, stopserver, maintenance, save, server stats, and the reserved announcement permission each have an independent OP level from 0 to 4. Missing fields use defaults; invalid or out-of-range values fall back to defaults and are logged. Dangerous commands default to OP level 4. `reload` and all `/pixelmcmanager` queries can be run from console. `preview` requires a player.
+原作者 / Original author: [zcpu · PixelMC](https://github.com/zcpu954861).
 
-`logincount` shows all recorded players sorted by login count descending. `logintime` shows all recorded players sorted by total online time descending. The `<player>` argument supports tab completion from all recorded player names, including offline historical players.
-
-The old `/pixelmcwelcome` command has been removed. Use `/pixelmcmanager`.
-
-`stopserver <time>` requires OP level 4. `<time>` means how long until all players are kicked and the server enters maintenance. The real server stop happens 15 seconds after maintenance starts. Supported formats are `s`, `m`, and `h`, for example:
-
-- `/pixelmcmanager stopserver 30s`
-- `/pixelmcmanager stopserver 10m`
-- `/pixelmcmanager stopserver 1h`
-
-Before maintenance starts, online players receive chat reminders at 15/10/5/4/3/2/1 minutes when applicable. During the final 10 seconds, players receive matching chat and subtitle countdown messages. At maintenance time, all online players are kicked with a custom two-line colored message, new joins are rejected with a custom two-line colored message, and the server safely runs `stop` 15 seconds later.
-
-`/pixelmcmanager stopserver cancel` cancels a pending stop plan. If maintenance has already started but the final `stop` has not run yet, `cancel` cancels that final stop and allows players to rejoin. Running `/pixelmcmanager stopserver <time>` while a plan or maintenance flow already exists replaces the old flow and starts timing again from the new command.
-
-`/pixelmcmanager stopserver status` displays the current stop plan without changing it. It shows whether the server is waiting for maintenance, already in the 15-second maintenance window, or past the final stop time, plus the remaining real wall-clock time, maintenance start time, and final stop time.
-
-`/pixelmcmanager maintenance <time>` schedules maintenance mode without stopping the server. At the scheduled time all online players are kicked, new joins are rejected with a custom two-line maintenance message, and the server keeps running until `/pixelmcmanager maintenance off`.
-
-`/pixelmcmanager maintenance now` enters maintenance immediately. `/pixelmcmanager maintenance off` cancels a pending maintenance plan or disables active maintenance. `/pixelmcmanager maintenance status` shows the current maintenance plan or active maintenance state. Maintenance plans and active maintenance state are in memory only and are not persisted across server restarts.
-
-`/pixelmcmanager audit` and `/pixelmcmanager audit last [count]` show recent successful management operations in-game. PixelMC Manager records successful `reload`, `stopserver`, `stopserver cancel`, `maintenance <time>`, `maintenance now`, and `maintenance off` operations. Query and preview commands are not recorded. Audit records are stored in the current world save root at `<world-save-root>/pixelmcmanager/audit.jsonl` and a recent in-memory cache is loaded on server start for fast queries.
-
-`/pixelmcmanager save` checkpoints online player stats, saves `player_stats.json`, confirms audit has no buffered writes, saves the current PixelMC Manager config state, requests the server world save flow, and records a successful `save` audit entry.
-
-`/pixelmcmanager stats` shows recorded player count, current online/max players, today active players by system timezone, total accumulated playtime, current server uptime, and maintenance state. It checkpoints online sessions in memory before reading totals and does not write audit.
-
-## Permission Config
-
-```json
-"permissions": {
-  "reloadLevel": 3,
-  "previewLevel": 2,
-  "statsLevel": 2,
-  "auditLevel": 4,
-  "stopserverLevel": 4,
-  "maintenanceLevel": 4,
-  "saveLevel": 4,
-  "serverStatsLevel": 2,
-  "announcementLevel": 4
-}
-```
-
-## Auto Announcements
-
-Automatic announcements are disabled by default and only send chat messages when enabled. They do not use title, subtitle, actionbar, bossbar, networking, or client-side code.
-
-```json
-"announcements": {
-  "enabled": false,
-  "intervalMinutes": 30,
-  "initialDelayMinutes": 5,
-  "messages": [
-    "&bQQ群：&e768322731",
-    "&7文明游玩，禁止恶意破坏。",
-    "&7遇到问题请联系管理员。"
-  ]
-}
-```
-
-When enabled, the scheduler waits `initialDelayMinutes` after startup or reload, then sends one configured message every `intervalMinutes`. Messages rotate in order, empty lists are skipped safely, and `{online}`, `{max}`, `{date}`, and `{time}` are resolved when the announcement is sent.
-
-## Release Format
-
-GitHub Release titles must use `PixelMC Manager Forge <mod_version>`, for example `PixelMC Manager Forge 0.3.0`. Release notes must include `## 更新内容`, `## 构建验证`, and `## 兼容版本与附件`, with exact jar asset names listed under `兼容版本与附件`.
-
-## Placeholders
-
-- `{player}`
-- `{uuid}`
-- `{online}`
-- `{max}`
-- `{join_count}`
-- `{playtime}`
-- `{playtime_hours}`
-- `{playtime_minutes}`
-- `{ping}`
-- `{date}`
-- `{time}`
-- `{first_join_date}`
-- `{last_join_date}`
-
-Unknown placeholders are left unchanged.
+[AGPL-3.0-only](LICENSE) · [Minecraft linking permission](LICENSE-EXCEPTION.md).
+保留版权与署名；分发修改版或使用修改版提供联网服务时，按许可证提供对应源码。
+Retain copyright and attribution; provide corresponding source when distributing modifications or offering modified software over a network, as required by the license.

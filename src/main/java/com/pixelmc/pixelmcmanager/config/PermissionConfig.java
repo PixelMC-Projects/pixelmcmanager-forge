@@ -12,6 +12,7 @@ public final class PermissionConfig {
     public int saveLevel = 4;
     public int serverStatsLevel = 2;
     public int announcementLevel = 4;
+    public int restartLevel = 4;
 
     public void normalize(Logger logger) {
         reloadLevel = normalizeLevel("reloadLevel", reloadLevel, 3, logger);
@@ -23,6 +24,7 @@ public final class PermissionConfig {
         saveLevel = normalizeLevel("saveLevel", saveLevel, 4, logger);
         serverStatsLevel = normalizeLevel("serverStatsLevel", serverStatsLevel, 2, logger);
         announcementLevel = normalizeLevel("announcementLevel", announcementLevel, 4, logger);
+        restartLevel = normalizeLevel("restartLevel", restartLevel, 4, logger);
     }
 
     private static int normalizeLevel(String field, int value, int fallback, Logger logger) {

@@ -116,3 +116,101 @@ publishing {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
+
+def restartGson = providers.provider {
+    sourceSets.main.compileClasspath.findAll { it.name.startsWith('gson-') }
+}
+sourceSets {
+    restartChecks {
+        compileClasspath = sourceSets.main.output + files(restartGson)
+        runtimeClasspath = output + compileClasspath
+    }
+}
+
+tasks.register('restartLogicTest', JavaExec) {
+    dependsOn restartChecksClasses
+    classpath = sourceSets.restartChecks.runtimeClasspath
+    mainClass = 'com.pixelmc.pixelmcmanager.restart.RestartLogicTest'
+}
+
+tasks.named('check').configure { dependsOn 'restartLogicTest' }
+
+def titlesRoot = providers.gradleProperty('memorialTitlesDir').map { file(it) }.getOrElse(
+        file('../MemorialTitles').exists() ? file('../MemorialTitles') : file('../../../MemorialTitles'))
+def titlesSource = new File(titlesRoot, 'src/main/java')
+configurations { managerJdbc }
+dependencies { managerJdbc('org.mariadb.jdbc:mariadb-java-client:3.5.6') { transitive = false } }
+sourceSets {
+    managerService {
+        java.srcDirs = ['manager-service/src/main/java', titlesSource]
+        java.include 'com/pixelmc/manager/service/**', 'cn/pixelmc/memorialtitles/domain/**',
+                'cn/pixelmc/memorialtitles/persistence/**', 'cn/pixelmc/memorialtitles/service/**',
+                'cn/pixelmc/memorialtitles/web/**', 'cn/pixelmc/memorialtitles/forge/ServerFiles.java'
+        compileClasspath = files(restartGson) + configurations.managerJdbc
+        runtimeClasspath = output + compileClasspath
+    }
+    managerChecks {
+        java.srcDir 'manager-service/src/test/java'
+        compileClasspath = sourceSets.managerService.output + sourceSets.managerService.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+}
+tasks.register('installManagerWeb', Exec) {
+    workingDir file('web-console')
+    commandLine(System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm',
+            'ci', '--prefer-offline', '--no-audit', '--no-fund')
+    inputs.files('web-console/package.json', 'web-console/package-lock.json')
+    outputs.file('web-console/node_modules/.package-lock.json')
+}
+
+tasks.register('buildManagerWeb', Exec) {
+    dependsOn 'installManagerWeb'
+    workingDir file('web-console')
+    commandLine(System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm', 'run', 'build')
+    inputs.files(fileTree('web-console/src'),fileTree('web-console/public'),'web-console/vite.config.mjs','web-console/package-lock.json')
+    outputs.dir('web-console/dist/client')
+}
+tasks.named('processManagerServiceResources').configure {
+    dependsOn 'buildManagerWeb'
+    from('web-console/dist/client') { into 'web' }
+}
+tasks.register('managerServiceJar', Jar) {
+    dependsOn 'managerServiceClasses'
+    doFirst {
+        if (!titlesSource.isDirectory()) throw new GradleException(
+                'Clone MemorialTitles alongside this repository, or set -PmemorialTitlesDir=/path/to/MemorialTitles; see BUILDING.md')
+    }
+    archiveFileName = "pixelmc-manager-service-${project.version}.jar"
+    destinationDirectory = layout.buildDirectory.dir('manager-service')
+    from sourceSets.managerService.output
+    from { sourceSets.managerService.compileClasspath.collect { zipTree(it) } }
+    exclude 'META-INF/*.SF','META-INF/*.RSA','META-INF/*.DSA','module-info.class','META-INF/versions/**'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest { attributes(['Main-Class':'com.pixelmc.manager.service.Main','Implementation-Version':project.version]) }
+}
+tasks.register('managerIntegrationTest', JavaExec) {
+    dependsOn 'managerChecksClasses'
+    classpath = sourceSets.managerChecks.runtimeClasspath
+    mainClass = 'com.pixelmc.manager.service.IntegrationChecks'
+}
+
+tasks.register('bridgeLogicTest', JavaExec) {
+    dependsOn restartChecksClasses
+    classpath = sourceSets.restartChecks.runtimeClasspath
+    mainClass = 'com.pixelmc.pixelmcmanager.bridge.BridgeLogicTest'
+}
+tasks.named('check').configure { dependsOn 'bridgeLogicTest' }
+
+tasks.register('lifecycleShutdownTest', JavaExec) {
+    dependsOn restartChecksClasses
+    classpath = sourceSets.restartChecks.runtimeClasspath
+    mainClass = 'com.pixelmc.pixelmcmanager.compat.LifecycleShutdownTest'
+}
+tasks.named('check').configure { dependsOn 'lifecycleShutdownTest' }
+
+// Preserve the project's license and original-author notice in every published JAR.
+tasks.withType(Jar).configureEach {
+    from(rootProject.file('LICENSE')) { into 'META-INF/pixelmc' }
+    from(rootProject.file('NOTICE')) { into 'META-INF/pixelmc' }
+    from(rootProject.file('LICENSE-EXCEPTION.md')) { into 'META-INF/pixelmc' }
+}

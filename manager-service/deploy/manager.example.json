@@ -1,0 +1,18 @@
+{
+  "database": {
+    "url": "jdbc:mariadb://memorialtitles-db:3306/pixelmc_manager",
+    "user": "pixelmc_manager",
+    "password": "REPLACE_BEFORE_START"
+  },
+  "titlesDatabase": {
+    "url": "jdbc:mariadb://memorialtitles-db:3306/memorialtitles",
+    "user": "memorialtitles",
+    "password": "REUSE_EXISTING_DATABASE_CREDENTIAL"
+  },
+  "titlesEnabled": true,
+  "bind": "0.0.0.0",
+  "port": 18800,
+  "publicUrl": "",
+  "owners": [],
+  "dataDirectory": "data"
+}

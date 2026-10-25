@@ -1,0 +1,86 @@
+package com.pixelmc.manager.service;
+
+import static com.pixelmc.manager.service.Wire.*;
+import cn.pixelmc.memorialtitles.persistence.Database;
+import cn.pixelmc.memorialtitles.web.*;
+import cn.pixelmc.memorialtitles.service.*;
+import com.google.gson.*;
+import java.net.*;
+import java.net.http.*;
+import java.nio.file.*;
+import java.sql.*;
+import java.util.*;
+
+/** Only an isolated loopback database on port 43317. Never reads production configuration. */
+public final class IntegrationChecks {
+  static int assertions;
+  static String schema="pm_check_"+UUID.randomUUID().toString().replace("-","");
+  static String titleSchema=schema+"_titles",run=UUID.randomUUID().toString(),world=UUID.randomUUID().toString(),player=UUID.randomUUID().toString();
+  static String token=UUID.randomUUID()+":"+UUID.randomUUID();
+  static void check(boolean value,String message){assertions++;if(!value)throw new AssertionError(message);}
+  interface Throwing{void run()throws Exception;}
+  static void denied(Throwing action,String message)throws Exception{try{action.run();throw new AssertionError(message);}catch(IllegalStateException|IllegalArgumentException|SecurityException expected){assertions++;}}
+  static JsonObject obj(String value){return JsonParser.parseString(value).getAsJsonObject();}
+  static JsonObject hello(String id,String worldId){return obj("{runId:'"+id+"',worldId:'"+worldId+"',startedAt:"+(System.currentTimeMillis()-10000)+",info:{}}");}
+  static JsonObject profile(long joins,long millis){JsonObject p=obj("{id:'"+player+"',name:'LocalTester',joinCount:"+joins+",totalOnlineMillis:"+millis+",firstJoinEpochMillis:100,lastJoinEpochMillis:200,ping:55,world:'minecraft:overworld',sessionMillis:5000}");return p;}
+  static JsonObject packet(String archive,long seq){JsonObject p=obj("{runId:'"+run+"',archiveId:'"+archive+"',seq:"+seq+",at:"+System.currentTimeMillis()+",snapshot:{},players:[],stats:[],logins:[],acks:[],longTicks:[]}");p.getAsJsonArray("stats").add(profile(3,3000));p.getAsJsonArray("players").add(profile(3,3000));JsonObject metric=obj("{at:"+System.currentTimeMillis()+",tps:20,mspt:12,heap:0.3}");p.add("metric",metric);JsonObject s=obj("{metric:{tps:20,mspt:12,heap:0.3},worlds:[],players:[]}");p.add("snapshot",s);return p;}
+  static String create(ManagerStore store,String worldId)throws Exception{return store.createArchive(obj("{instanceId:'local-test',worldId:'"+worldId+"',name:'隔离整合包',version:'test',startedOn:'2026-10-24',active:true}"),"test").get("id").getAsString();}
+  public static void main(String[] args)throws Exception{
+    System.setProperty("jdk.httpclient.allowRestrictedHeaders","host");
+    String base="jdbc:mariadb://127.0.0.1:43317/";
+    try(Connection c=DriverManager.getConnection(base,"root","")){c.createStatement().execute("CREATE DATABASE "+schema+" CHARACTER SET utf8mb4");c.createStatement().execute("CREATE DATABASE "+titleSchema+" CHARACTER SET utf8mb4");}
+    Path folder=Files.createTempDirectory(Path.of("manager-service"),".integration-");
+    var db=new Database.Config(base+schema,"root","");var titleDb=new Database.Config(base+titleSchema,"root","");
+    try{
+      ManagerStore store=new ManagerStore(db);store.migrate();store.register("local-test",token);check(store.authenticate("local-test",token),"token works");check(!store.authenticate("local-test","wrong"),"wrong token denied");
+      check(store.hello("local-test",hello(run,world)).get("bindingRequired").getAsBoolean(),"unbound world reported");denied(()->store.hello("local-test",hello(UUID.randomUUID().toString(),UUID.randomUUID().toString())),"hello reserves connection lease before first telemetry");String archive=create(store,world);
+      check(!store.state("local-test","").get("connected").getAsBoolean(),"hello is not live telemetry");
+      String eventId=UUID.randomUUID().toString();JsonObject earlyLogin=obj("{id:'"+eventId+"',sessionId:'session-test',uuid:'"+player+"',name:'LocalTester',at:"+System.currentTimeMillis()+"}");
+      JsonObject early=packet(archive,1);early.add("stats",new JsonArray());early.add("players",new JsonArray());early.getAsJsonArray("logins").add(earlyLogin);
+      check(store.ingest("local-test",early).get("accepted").getAsBoolean(),"admitted login before checkpoint does not stall telemetry");
+      check(store.players(archive,Map.of(),true).get("total").getAsInt()==0,"login journal alone never creates player profiles");
+      check(store.logins(archive,player,0,8).get("total").getAsInt()==1,"early login is durably preserved");
+      check(!store.ingest("local-test",early).get("accepted").getAsBoolean(),"early login packet retry is idempotent");
+      JsonObject legacy=obj("{version:1,players:{}}");JsonObject old=profile(2,2000);old.remove("id");legacy.getAsJsonObject("players").add(player,old);
+      check(store.importLegacy(archive,legacy,"test",false).get("players").getAsInt()==1,"legacy preview");store.importLegacy(archive,legacy,"test",true);check(store.importLegacy(archive,legacy,"test",true).get("alreadyImported").getAsBoolean(),"legacy import idempotent");
+      JsonObject p=packet(archive,2);p.getAsJsonArray("logins").add(earlyLogin.deepCopy());
+      for(long[] t:new long[][]{{1,51},{2,60},{4,70},{5,99},{7,100},{8,200},{9,201}})p.getAsJsonArray("longTicks").add(obj("{tickIndex:"+t[0]+",duration:"+t[1]+",at:"+System.currentTimeMillis()+"}"));
+      check(store.ingest("local-test",p).get("accepted").getAsBoolean(),"snapshot committed");check(!store.ingest("local-test",p).get("accepted").getAsBoolean(),"snapshot replay deduplicated");
+      check(store.state("local-test","").get("connected").getAsBoolean(),"real snapshot live");check(store.logins(archive,player,0,8).get("total").getAsInt()==1,"login deduplicated");
+      var grouped=store.longTickPage("local-test",run,50,0,System.currentTimeMillis());check(grouped.get("total").getAsInt()==5&&grouped.get("events").getAsInt()==7,"true consecutive groups only");check(store.longTickPage("local-test",run,100,0,System.currentTimeMillis()).get("events").getAsInt()==2,"strict threshold excludes exact100");
+      var page=store.players(archive,Map.of("sort","status"),true);check(page.getAsJsonArray("rows").get(0).getAsJsonObject().get("isOnline").getAsBoolean(),"JDBC booleans normalized");check(store.lifetime(player).get("joinCount").getAsLong()==3,"aggregate snapshots not added twice");
+      denied(()->store.archive(archive,"test"),"live archive denied");try(Connection c=store.open()){ManagerStore.update(c,"UPDATE pm_instances SET last_seen=? WHERE id='local-test'",System.currentTimeMillis()-20000);}denied(()->store.archive(archive,"test"),"disconnect cannot finalize archive");
+      JsonObject rollback=packet(archive,3);rollback.getAsJsonArray("stats").set(0,profile(1,500));rollback.getAsJsonArray("players").set(0,profile(1,500));store.ingest("local-test",rollback);check(store.state("local-test","").getAsJsonObject("totals").get("counterWarnings").getAsInt()==1,"lower restored checkpoint is reported instead of silently resummed");
+      JsonObject terminal=packet(archive,4);terminal.addProperty("stopped",true);store.ingest("local-test",terminal);check(!store.ingest("local-test",terminal).get("accepted").getAsBoolean(),"terminal lost-response retry safe");store.archive(archive,"test");check(store.state("local-test",archive).get("historical").getAsBoolean(),"archived data read-only");
+      String previous=run;run=UUID.randomUUID().toString();world=UUID.randomUUID().toString();store.hello("local-test",hello(run,world));String next=create(store,world);store.ingest("local-test",packet(next,1));denied(()->store.ingest("local-test",p),"old run cannot resurrect");check(store.metrics("local-test",previous,43200000,System.currentTimeMillis()).isEmpty(),"old performance hidden immediately");check(store.metrics("local-test",run,43200000,System.currentTimeMillis()).size()==1,"new performance independent");
+      check(store.state("local-test",archive).get("archiveId").getAsString().equals(archive),"history scope independent");check(store.state("local-test","").get("archiveId").getAsString().equals(next),"active write binding unchanged");check(store.lifetime(player).get("joinCount").getAsLong()==6,"cross-pack totals separate from per-pack");store.cleanup(System.currentTimeMillis());check(store.players(archive,Map.of(),false).get("total").getAsInt()==1,"cleanup keeps durable players");
+      UUID owner=UUID.randomUUID();var config=new ServiceConfig(db,titleDb,true,"127.0.0.1",18801,"http://127.0.0.1:18801",List.of(owner),"data");
+      try(ManagerController controller=new ManagerController(config,folder)){
+        controller.web=new AdminWebServer(controller.titles,controller,new WebConfig(true,"127.0.0.1",18801,"http://127.0.0.1:18801",480,List.of()),folder.resolve("titles"),folder.resolve("backups/titles"));controller.web.accounts.create("localadmin",owner,"Test-Only-Pass-123!");
+        var cookies=new CookieManager(null,CookiePolicy.ACCEPT_ALL);HttpClient client=HttpClient.newBuilder().cookieHandler(cookies).build();String url=config.publicUrl();
+        check(send(client,url,"/api/manager/bootstrap",null,null,null).statusCode()==401,"anonymous API rejected");var login=send(client,url,"/api/login",obj("{username:'localadmin',password:'Test-Only-Pass-123!'}"),null,url);check(login.statusCode()==200,"real username login");String csrf=JsonParser.parseString(login.body()).getAsJsonObject().get("csrf").getAsString();
+        check(send(client,url,"/api/manager/bootstrap",null,null,null).statusCode()==200,"real bootstrap");check(send(client,url,"/api/manager/avatars/"+owner+".png",null,null,null).statusCode()==200,"manager avatar fallback independent of title player profile");check(send(client,url,"/api/manager/backup",new JsonObject(),null,url).statusCode()==403,"missing CSRF blocked");check(send(client,url,"/api/manager/backup",new JsonObject(),csrf,"http://evil.invalid").statusCode()==403,"foreign origin blocked");
+        JsonObject rpc=obj("{extension:'memorialtitles',op:'login',data:{args:['"+player+"','LocalTester'],revision:''}}");check(bridge(client,url,rpc).get("error").getAsString().contains("身份"),"unproved login rejected");rpc.addProperty("playerProof",player);JsonObject response=bridge(client,url,rpc);check(!response.has("error")&&response.has("snapshot"),"title RPC snapshot transfer");String revision=response.get("revision").getAsString();rpc.addProperty("op","reconnect");rpc.getAsJsonObject("data").add("args",new JsonArray());var dns=HttpRequest.newBuilder(URI.create(url+"/bridge/rpc")).header("Host","pixelmc-manager-web:18801").header("Content-Type","application/json").header("X-PixelMC-Instance","local-test").header("Authorization","Bearer "+token).POST(HttpRequest.BodyPublishers.ofString(JSON.toJson(rpc))).build();check(client.send(dns,HttpResponse.BodyHandlers.ofString()).statusCode()==200,"container DNS bridge authority accepted without weakening browser origin checks");rpc.addProperty("op","reconnect");rpc.getAsJsonObject("data").add("args",new JsonArray());rpc.getAsJsonObject("data").addProperty("revision",revision);check(!bridge(client,url,rpc).has("snapshot"),"unchanged title snapshot not rebroadcast");
+        try(Connection c=new Database(titleDb).open()){ManagerStore.update(c,"INSERT INTO mt_notifications(player,title,title_name,granted,created_at) VALUES(?,?,?,?,?)",player,"historical-title","{\"segments\":[],\"gradients\":[]}",true,System.currentTimeMillis());}
+        Path backup=controller.backupAll();try(var zip=new java.util.zip.ZipFile(backup.toFile())){check(zip.getEntry("database/pm_metrics.json")==null&&zip.getEntry("database/pm_long_ticks.json")==null&&zip.getEntry("database/pm_tick_groups.json")==null,"performance excluded from backup");check(zip.getEntry("database/pm_logins.json")!=null,"durable logins backed up");}
+        String restoredDb=schema+"_restored",restoredTitles=titleSchema+"_restored";
+        try(Connection c=DriverManager.getConnection(base,"root","")){c.createStatement().execute("CREATE DATABASE "+restoredDb+" CHARACTER SET utf8mb4");c.createStatement().execute("CREATE DATABASE "+restoredTitles+" CHARACTER SET utf8mb4");}
+        try{
+          Path restoreData=folder.resolve("restore");var destination=new ServiceConfig(new Database.Config(base+restoredDb,"root",""),new Database.Config(base+restoredTitles,"root",""),true,"127.0.0.1",18802,"http://127.0.0.1:18802",List.of(),"data");
+          ServiceConfig restored=ManagerRestore.restore(destination,restoreData,backup);ManagerRestore.complete(restoreData);try(Connection c=new Database(restored.titlesDatabase()).open()){check(ManagerStore.rows(c,"SELECT id FROM mt_notifications").size()==1,"unread offline notices included in full backup");}
+          check(restored.owners().contains(owner),"backup restores owner identities");check(new ManagerStore(restored.database()).lifetime(player).get("joinCount").getAsLong()==6,"empty DB restore preserves durable counters");check(new AccountStore(restoreData.resolve("titles")).verify("localadmin","Test-Only-Pass-123!")!=null,"backup restores username/password hash");
+          denied(()->ManagerRestore.restore(destination,restoreData,backup),"restore cannot overwrite populated database");
+        }finally{try(Connection c=DriverManager.getConnection(base,"root","")){c.createStatement().execute("DROP DATABASE "+restoredDb);c.createStatement().execute("DROP DATABASE "+restoredTitles);}}
+        for(int i=0;i<10;i++)send(client,url,"/api/login",obj("{username:'bad',password:'bad'}"),null,url);check(send(client,url,"/api/login",obj("{username:'bad',password:'bad'}"),null,url).statusCode()==429,"login brute force limit");
+      }
+      JsonObject secondStop=packet(next,2);secondStop.addProperty("stopped",true);store.ingest("local-test",secondStop);String unboundWorld=UUID.randomUUID().toString(),unboundRun=UUID.randomUUID().toString();check(store.hello("local-test",hello(unboundRun,unboundWorld)).get("bindingRequired").getAsBoolean(),"new world does not reuse old archive binding");check(!store.bound("local-test"),"unbound world cannot issue previous pack first-login reward");store.archive(next,"test");check(store.archiveInfo(next).get("status").getAsString().equals("archived"),"previous world final sync still permits archive after a new world hello");
+      UUID offlineOwner=UUID.randomUUID();var unavailable=new Database.Config("jdbc:mariadb://127.0.0.1:43318/unavailable","root","");
+      try(ManagerController controller=new ManagerController(new ServiceConfig(unavailable,titleDb,false,"127.0.0.1",18803,"http://127.0.0.1:18803",List.of(offlineOwner),"data"),folder.resolve("offline"))){
+        controller.web=new AdminWebServer(controller.titles,controller,new WebConfig(true,"127.0.0.1",18803,"http://127.0.0.1:18803",480,List.of()),folder.resolve("offline/titles"),folder.resolve("offline/backups"));controller.web.accounts.create("offlineadmin",offlineOwner,"Test-Only-Pass-123!");var client=HttpClient.newBuilder().cookieHandler(new CookieManager(null,CookiePolicy.ACCEPT_ALL)).build();check(send(client,"http://127.0.0.1:18803","/api/login",obj("{username:'offlineadmin',password:'Test-Only-Pass-123!'}"),null,"http://127.0.0.1:18803").statusCode()==200,"DB outage does not lock local account login");check(send(client,"http://127.0.0.1:18803","/api/manager/bootstrap",null,null,null).statusCode()==503,"DB outage returns explicit unavailable state");
+      }
+      System.out.println("PASS: "+assertions+" Manager SQL/HTTP/lifecycle assertions; isolated schemas removed.");
+    }finally{try(Connection c=DriverManager.getConnection(base,"root","")){c.createStatement().execute("DROP DATABASE IF EXISTS "+schema);c.createStatement().execute("DROP DATABASE IF EXISTS "+titleSchema);}}
+  }
+  static HttpResponse<String> send(HttpClient client,String base,String path,JsonObject body,String csrf,String origin)throws Exception{var r=HttpRequest.newBuilder(URI.create(base+path)).timeout(java.time.Duration.ofSeconds(20));if(csrf!=null)r.header("X-CSRF-Token",csrf);if(origin!=null)r.header("Origin",origin);if(body!=null)r.header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(JSON.toJson(body)));return client.send(r.build(),HttpResponse.BodyHandlers.ofString());}
+  static JsonObject bridge(HttpClient client,String base,JsonObject body)throws Exception{var r=HttpRequest.newBuilder(URI.create(base+"/bridge/rpc")).header("Content-Type","application/json").header("Authorization","Bearer "+token).header("X-PixelMC-Instance","local-test").POST(HttpRequest.BodyPublishers.ofString(JSON.toJson(body))).build();var response=client.send(r,HttpResponse.BodyHandlers.ofString());check(response.statusCode()==200,"machine RPC envelope");return JsonParser.parseString(response.body()).getAsJsonObject();}
+}

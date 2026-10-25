@@ -78,6 +78,16 @@ public final class WelcomeConfigManager {
         Files.writeString(configPath, GSON.toJson(config), StandardCharsets.UTF_8);
     }
 
+    public String snapshotJson() { return GSON.toJson(config); }
+
+    public void saveSnapshot(String json) throws IOException {
+        Files.createDirectories(configPath.getParent());
+        Path temp=configPath.resolveSibling(configPath.getFileName()+".bridge-tmp");
+        Files.writeString(temp,json,StandardCharsets.UTF_8);
+        try { Files.move(temp,configPath,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING); }
+        catch (java.nio.file.AtomicMoveNotSupportedException e) { Files.move(temp,configPath,StandardCopyOption.REPLACE_EXISTING); }
+    }
+
     private void sanitizeConfigJson(JsonObject root) {
         sanitizeSection(root, "permissions");
         sanitizeInteger(root, "permissions", "reloadLevel", 3);
@@ -89,6 +99,9 @@ public final class WelcomeConfigManager {
         sanitizeInteger(root, "permissions", "saveLevel", 4);
         sanitizeInteger(root, "permissions", "serverStatsLevel", 2);
         sanitizeInteger(root, "permissions", "announcementLevel", 4);
+        sanitizeInteger(root, "permissions", "restartLevel", 4);
+        sanitizeSection(root, "restart");
+        sanitizeInteger(root, "restart", "metadataRecheckSeconds", 60);
         sanitizeSection(root, "announcements");
         sanitizeInteger(root, "announcements", "intervalMinutes", 30);
         sanitizeInteger(root, "announcements", "initialDelayMinutes", 5);

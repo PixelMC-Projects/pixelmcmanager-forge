@@ -169,6 +169,11 @@ public final class PlayerStatsStore {
         return !lastAccountedMillis.isEmpty();
     }
 
+    public synchronized long uncheckpointedMillis(UUID id, long now) {
+        Long at = lastAccountedMillis.get(id);
+        return at == null ? 0 : Math.max(0, now - at);
+    }
+
     public synchronized void checkpointOnlinePlayers(MinecraftServer server, long nowMillis, boolean saveAfterCheckpoint) {
         if (!ensureLoaded(server)) {
             return;

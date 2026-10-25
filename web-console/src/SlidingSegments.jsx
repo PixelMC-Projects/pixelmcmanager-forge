@@ -1,0 +1,5 @@
+import React from 'react';
+export function SlidingSegments({label,options,value,onChange,className=''}) {
+  const index=Math.max(0,options.findIndex(option=>option.value===value));
+  return <div className={'sliding-segments '+className} role="group" aria-label={label} style={{gridTemplateColumns:`repeat(${options.length},minmax(0,1fr))`}}><i aria-hidden="true" style={{width:`calc((100% - 6px) / ${options.length})`,transform:`translateX(${index*100}%)`}}/>{options.map((option,position)=><button type="button" key={option.value} aria-pressed={option.value===value} tabIndex={option.value===value?0:-1} onClick={()=>onChange(option.value)} onKeyDown={event=>{let next=position;if(event.key==='ArrowRight')next=Math.min(options.length-1,position+1);else if(event.key==='ArrowLeft')next=Math.max(0,position-1);else if(event.key==='Home')next=0;else if(event.key==='End')next=options.length-1;else return;event.preventDefault();onChange(options[next].value);event.currentTarget.parentElement.querySelectorAll('button')[next].focus();}}>{option.label}</button>)}</div>;
+}

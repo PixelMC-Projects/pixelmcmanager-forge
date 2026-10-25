@@ -1,0 +1,37 @@
+/* Registered profiles have an extra column; override older positional hides. */
+.all-player-roster .roster-head,.all-player-roster .roster-row { grid-template-columns:minmax(305px,2.5fr) 92px minmax(85px,.75fr) minmax(65px,.55fr) minmax(95px,.8fr) minmax(125px,1.1fr) minmax(85px,.7fr) 18px; gap:17px; }
+.all-player-roster .roster-head > span,.all-player-roster .roster-row > span { display:block; }
+.all-player-roster .roster-row > .roster-identity { display:flex; }
+.player-presence { display:inline-block; vertical-align:middle; width:10px; height:10px; border-radius:50%; background:var(--muted); }
+.player-presence.online { background:var(--green); }
+.player-presence.offline { background:var(--muted); opacity:.65; }
+.player-presence.unknown { background:transparent; border:1px solid var(--muted); }
+.presence-caption { margin-left:8px; }
+.all-player-roster .roster-column-status .player-presence { margin-left:14px; }
+@media(max-width:1450px) {
+  .all-player-roster .roster-head,.all-player-roster .roster-row { grid-template-columns:minmax(235px,2fr) 76px 80px 62px 100px 118px 72px 16px; gap:12px; }
+}
+@media(max-width:1250px) {
+  .all-player-roster .roster-head,.all-player-roster .roster-row { grid-template-columns:minmax(215px,2fr) 76px 78px 60px 110px 70px 16px; gap:10px; }
+  .all-player-roster :is(.roster-head,.roster-row) > .roster-column-session { display:none; }
+}
+@media(max-width:1100px) {
+  .all-player-roster .roster-head,.all-player-roster .roster-row { grid-template-columns:minmax(195px,2fr) 70px 60px 110px 65px 14px; }
+  .all-player-roster :is(.roster-head,.roster-row) > .roster-column-world { display:none; }
+}
+@media(max-width:950px) {
+  .all-player-roster .roster-head,.all-player-roster .roster-row { grid-template-columns:minmax(150px,2fr) 68px 105px 62px 14px; gap:9px; }
+  .all-player-roster :is(.roster-head,.roster-row) > .roster-column-ping { display:none; }
+}
+@media(max-width:720px) {
+  .all-player-roster .roster-head,.all-player-roster .roster-row { grid-template-columns:minmax(130px,1fr) 65px 95px 12px; gap:8px; }
+  .all-player-roster :is(.roster-head,.roster-row) > .roster-column-joinCount { display:none; }
+  .all-player-roster .roster-row > svg { width:12px; height:12px; }
+  .view-toolbar .view-tabs { gap:18px; }
+}
+@media(max-width:480px) {
+  .all-player-roster .roster-head,.all-player-roster .roster-row { grid-template-columns:minmax(0,1fr) 60px 82px 12px; gap:7px; padding-left:0; padding-right:0; }
+  .all-player-roster .roster-column-totalOnlineMillis { font-size:10px; }
+  .view-toolbar .view-tabs { gap:15px; }
+  .view-toolbar .view-tabs button { font-size:11px; }
+}

@@ -16,6 +16,7 @@ import com.pixelmc.pixelmcmanager.maintenance.TimeArgumentParser;
 import com.pixelmc.pixelmcmanager.placeholder.PlaceholderContext;
 import com.pixelmc.pixelmcmanager.placeholder.PlaceholderResolver;
 import com.pixelmc.pixelmcmanager.runtime.ServerRuntimeStats;
+import com.pixelmc.pixelmcmanager.restart.IdleRestartScheduler;
 import com.pixelmc.pixelmcmanager.stats.PlayerStats;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsEntry;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
@@ -54,8 +55,9 @@ public final class PixelMCManagerCommands {
     private final StopServerScheduler stopServerScheduler;
     private final MaintenanceScheduler maintenanceScheduler;
     private final ServerRuntimeStats runtimeStats;
+    private final IdleRestartScheduler restartScheduler;
 
-    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, AuditService auditService, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler, ServerRuntimeStats runtimeStats) {
+    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, AuditService auditService, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler, ServerRuntimeStats runtimeStats, IdleRestartScheduler restartScheduler) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.auditService = auditService;
@@ -64,6 +66,7 @@ public final class PixelMCManagerCommands {
         this.stopServerScheduler = stopServerScheduler;
         this.maintenanceScheduler = maintenanceScheduler;
         this.runtimeStats = runtimeStats;
+        this.restartScheduler = restartScheduler;
     }
 
     @SubscribeEvent
@@ -122,6 +125,15 @@ public final class PixelMCManagerCommands {
                         .then(Commands.argument("time", StringArgumentType.word())
                                 .suggests((context, builder) -> SharedSuggestionProvider.suggest(STOPSERVER_SUGGESTIONS, builder))
                                 .executes(context -> stopServer(context.getSource(), StringArgumentType.getString(context, "time")))))
+                .then(Commands.literal("restart")
+                        .requires(source -> hasPermission(source, permissions().restartLevel))
+                        .then(Commands.literal("whenempty").executes(context -> restartAction(context.getSource(), "whenempty")))
+                        .then(Commands.literal("cancel").executes(context -> restartAction(context.getSource(), "cancel")))
+                        .then(Commands.literal("status").executes(context -> restartAction(context.getSource(), "status")))
+                        .then(Commands.literal("onmodchange")
+                                .then(Commands.literal("on").executes(context -> restartAction(context.getSource(), "on")))
+                                .then(Commands.literal("off").executes(context -> restartAction(context.getSource(), "off")))
+                                .then(Commands.literal("status").executes(context -> restartAction(context.getSource(), "status")))))
                 .then(Commands.literal("maintenance")
                         .requires(source -> hasPermission(source, permissions().maintenanceLevel))
                         .then(Commands.literal("now")
@@ -146,6 +158,8 @@ public final class PixelMCManagerCommands {
     private int help(CommandSourceStack source) {
         send(source, "&7❰ &b&l✦ &f&lPixelMC Manager &e&l✦ &7❱");
         send(source, "&b/pixelmcmanager reload");
+        send(source, "&b/pixelmcmanager restart <whenempty|cancel|status>");
+        send(source, "&b/pixelmcmanager restart onmodchange <on|off|status>");
         send(source, "&b/pixelmcmanager preview [first|returning]");
         send(source, "&b/pixelmcmanager logincount [player]");
         send(source, "&d/pixelmcmanager logintime [player]");
@@ -155,6 +169,32 @@ public final class PixelMCManagerCommands {
         send(source, "&6/pixelmcmanager maintenance <time|now|off|status>");
         send(source, "&9/pixelmcmanager audit [last] [count]");
         return Command.SINGLE_SUCCESS;
+    }
+
+    private int restartAction(CommandSourceStack source, String action) {
+        try {
+            if (action.equals("status")) { send(source, "&e" + restartScheduler.status()); return Command.SINGLE_SUCCESS; }
+            String message;
+            if (action.equals("whenempty")) message = restartScheduler.schedule();
+            else if (action.equals("cancel")) message = restartScheduler.cancel();
+            else {
+                boolean previous = configManager.getConfig().restart.restartOnModChange;
+                configManager.getConfig().restart.restartOnModChange = action.equals("on");
+                try { configManager.saveCurrent(); }
+                catch (Exception e) {
+                    configManager.getConfig().restart.restartOnModChange = previous;
+                    throw new IllegalStateException("配置保存失败，自动重启开关保持原值。");
+                }
+                restartScheduler.optionChanged();
+                message = "模组变更空服自动重启已" + (action.equals("on") ? "开启" : "关闭") + "，配置已保存。";
+            }
+            auditService.record(source, "idle_restart_" + action, "", message);
+            send(source, "&a" + message);
+            return Command.SINGLE_SUCCESS;
+        } catch (IllegalStateException e) {
+            source.sendFailure(textParser.parse("&c" + e.getMessage(), configManager.getConfig()));
+            return 0;
+        }
     }
 
     private int save(CommandSourceStack source) {

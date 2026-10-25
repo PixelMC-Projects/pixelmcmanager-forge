@@ -15,6 +15,7 @@ public final class WelcomeConfig {
     public boolean debugLogging = false;
     public PermissionConfig permissions = new PermissionConfig();
     public AnnouncementConfig announcements = new AnnouncementConfig();
+    public RestartConfig restart = new RestartConfig();
 
     public static WelcomeConfig defaults() {
         WelcomeConfig config = new WelcomeConfig();
@@ -58,5 +59,7 @@ public final class WelcomeConfig {
             announcements = new AnnouncementConfig();
         }
         announcements.normalize(logger);
+        if (restart == null) restart = new RestartConfig();
+        restart.normalize();
     }
 }
