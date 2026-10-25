@@ -82,10 +82,14 @@ public final class ManagerController implements AdminWebServer.Host,AutoCloseabl
         UUID player=UUID.fromString(args.get(0).getAsString());if(!online().contains(player))throw new SecurityException("玩家不在线");
         web.avatars.uploadFallback(player,args.get(1).getAsString(),args.get(2).getAsString());result=null;
       }else{
-        Set<String> allowed=Set.of("reconnect","login","notifications","acknowledgeNotifications","authorize","saveTitle","grant","titleDeletePreview","deleteTitle","revoke","equip","privacy","toggleDisplayPosition","settings","reload","history","searchHistory","migrateIdentity","changes","undo","deletePreview","deletePlayer","export","importPreview","restoreEmpty");
+        Set<String> allowed=Set.of("reconnect","login","notifications","acknowledgeNotifications","authorize","saveTitle","grant","titleDeletePreview","deleteTitle","revoke","equip","privacy","toggleDisplayPosition","setUnequippedReminder","settings","reload","history","searchHistory","migrateIdentity","changes","undo","deletePreview","deletePlayer","export","importPreview","restoreEmpty");
         if(!allowed.contains(op))throw new SecurityException("扩展操作未注册");
         if(op.equals("login")&&!store.bound(instance))throw new IllegalStateException("当前存档尚未绑定整合包，首登处理等待管理员完成设置");
         if(op.equals("login")&&!args.get(0).getAsString().equals(text(b,"playerProof",36)))throw new SecurityException("只接受成功入服玩家的身份报告");
+        if(op.equals("setUnequippedReminder") && (args.size()!=2
+            || !args.get(0).getAsString().equals(text(b,"playerProof",36))
+            || !args.get(1).isJsonPrimitive() || !args.get(1).getAsJsonPrimitive().isBoolean()))
+          throw new SecurityException("只接受已入服玩家本人的提醒开关与布尔参数");
         var method=Arrays.stream(TitleService.class.getMethods()).filter(m->m.getName().equals(op)&&m.getParameterCount()==args.size()&&m.getReturnType()==CompletableFuture.class).findFirst().orElseThrow(()->new IllegalArgumentException("扩展参数不匹配"));
         if(op.equals("reconnect")){result=null;}else{
           Object[] values=new Object[args.size()];for(int j=0;j<values.length;j++)values[j]=cn.pixelmc.memorialtitles.domain.Model.JSON.fromJson(args.get(j),method.getGenericParameterTypes()[j]);
