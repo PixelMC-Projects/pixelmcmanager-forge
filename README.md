@@ -17,9 +17,11 @@
 
 ### 使用
 
-适用于 Minecraft **1.20.1 / Forge**，只需服务端安装。配置文件为 `config/pixelmcmanager.json`。
+适用于 Minecraft **1.20.1 / Forge**，只需服务端安装。
 
-网页后台需单独运行 [Manager Service](manager-service/README.md)，使用 MariaDB 保存数据；游戏停服时后台仍可访问。
+1. 将模组放入服务端 `mods/`，启动后生成 `config/pixelmcmanager.json`，按需修改问候、公告和管理配置。
+2. 只使用模组功能时，不需要数据库或网页程序。
+3. 需要网页时，先按 [Manager Service 部署流程](manager-service/README.md) 启动独立后台，再把生成的实例桥接配置放到 `config/pixelmcmanager-bridge.json`，重启游戏服接入。后台使用 MariaDB，游戏停服时仍可访问。
 
 ## English
 
@@ -36,9 +38,11 @@ Server monitoring, player records, and everyday administration in one place. Use
 
 ### Usage
 
-For Minecraft **1.20.1 / Forge**. Install on the server only. Configuration: `config/pixelmcmanager.json`.
+For Minecraft **1.20.1 / Forge**. Install on the server only.
 
-Run [Manager Service](manager-service/README.md) separately for the web dashboard and MariaDB-backed storage. The dashboard stays available while the game server is stopped.
+1. Put the mod in the server's `mods/` folder. Start the server to generate `config/pixelmcmanager.json`, then configure greetings, announcements and management options.
+2. Standalone mod features need no database or web service.
+3. For the dashboard, follow the [Manager Service deployment steps](manager-service/README.md), copy its generated instance configuration to `config/pixelmcmanager-bridge.json`, and restart the game server. The MariaDB-backed dashboard remains available while the game is stopped.
 
 ---
 
