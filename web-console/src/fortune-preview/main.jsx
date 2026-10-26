@@ -1,0 +1,11 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import '@fontsource-variable/inter';
+import '../styles.css';
+import '../layout.css';
+import '../playerRoster.css';
+import '../extensions.css';
+import '../titles/module.css';
+import './preview.css';
+import {PreviewApp} from './PreviewApp';
+createRoot(document.getElementById('root')).render(<React.StrictMode><PreviewApp/></React.StrictMode>);

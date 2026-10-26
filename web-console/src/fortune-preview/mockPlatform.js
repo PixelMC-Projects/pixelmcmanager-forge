@@ -1,0 +1,3 @@
+const noop=()=>{};
+const value={session:{username:'本地管理员',player:'df000000-0000-4000-a000-000000000001'},archive:'',instance:'local-preview',scope:p=>p,chooseArchive:noop,chooseInstance:noop,refresh:noop,logout:noop,error:'',command:async()=> '仅模拟操作，未发送到服务器',value:{archives:[],instances:[],extensions:[{id:'memorialtitles',name:'MemorialTitles',label:'称号管理',capabilities:['称号档案','玩家收藏','操作记录'],page:'titles',healthy:true,description:'纪念称号与玩家收藏 · 本地示例',titles:6,players:24},{id:'dailyfortunes',name:'DailyFortunes',label:'抽签管理',capabilities:['签文档案','玩家签历','操作记录'],page:'fortunes',healthy:true,description:'每日一签与永久签历 · 本地示例'}]}};
+export const usePlatform=()=>value;
