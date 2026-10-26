@@ -28,6 +28,14 @@ PixelMC Manager 的常驻网页后台。游戏服关闭时，仍可访问玩家�
 
 DailyFortunes 数据配置页提供独立完整备份、SHA-256 验证/下载和签文配置合并导入。已有签号更新，未列出的定义保留；历史签历保留抽取时的版本。后台 `backup` / `restore` 命令的范围仍是 Manager 与 MemorialTitles；DailyFortunes 必须单独备份，不能把 Manager 备份当作已包含抽签数据。关闭扩展只隐藏和停止其服务，不删除独立数据库。
 
+恢复 DailyFortunes 时先停止相关写入方，新建独立空库，将目标库的 `{ "url": "jdbc:mariadb://127.0.0.1:3306/dailyfortunes_restore", "user": "dailyfortunes", "password": "填写目标库密码" }` 存入私密 `restore-db.json`，然后执行：
+
+```sh
+java -cp service.jar cn.pixelmc.dailyfortunes.service.FortuneRestore backup.json restore-db.json RESTORE-EMPTY-DAILYFORTUNES
+```
+
+此入口先校验 SHA-256 与结构，只允许空的玩家、签历和审计库；事务恢复，拒绝覆盖已有收藏。不要将密码放在命令行。网页不提供整库覆盖按钮。
+
 配置、凭据、头像和备份保存在运行目录，后续升级保留这些数据。源码构建见 [BUILDING.md](../BUILDING.md)。
 
 ## English
@@ -56,6 +64,8 @@ Run with Java 17 and MariaDB, directly or through MCSManager / Docker. Connect t
 
 DailyFortunes has its own full backup, SHA-256 verification/download and configuration merge import. Existing IDs are updated, omitted definitions are retained, and historical draw snapshots stay fixed. Manager CLI `backup` / `restore` still covers Manager and MemorialTitles only; back up DailyFortunes separately from its data page. Disabling the optional extension does not delete its database.
 
+For offline DailyFortunes recovery, stop its writers and create a separate empty database. Save the destination `{url,user,password}` in a private `restore-db.json`, then run `java -cp service.jar cn.pixelmc.dailyfortunes.service.FortuneRestore backup.json restore-db.json RESTORE-EMPTY-DAILYFORTUNES`. The tool verifies SHA-256 and structure, restores transactionally, and refuses an existing player/calendar/audit database. Passwords stay out of command arguments; the web UI cannot overwrite a full database.
+
 Keep runtime configuration, credentials, avatars and backups when upgrading. For source builds, see [BUILDING.md](../BUILDING.md).
 
 ---
@@ -65,3 +75,7 @@ Keep runtime configuration, credentials, avatars and backups when upgrading. For
 [AGPL-3.0-only](../LICENSE) · [Minecraft linking permission](../LICENSE-EXCEPTION.md).
 保留版权与署名；分发修改版或使用修改版提供联网服务时，按许可证提供对应源码。
 Retain copyright and attribution; provide corresponding source when distributing modifications or offering modified software over a network, as required by the license.
+
+## Shared backend source versions
+
+Manager service 0.5.2 is built from [Forge v0.5.2](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/v0.5.2), [MemorialTitles 0bc729f](https://github.com/PixelMC-Projects/MemorialTitles/tree/0bc729f3030c5d0a0df6c8442a561c3a9cc8685a), and [DailyFortunes 9e5b6e6](https://github.com/PixelMC-Projects/DailyFortunes/tree/9e5b6e6c14fa4cede433eadc126b3abe172333f0). Forge and Fabric releases reuse the exact same service/supervisor ZIP bytes. The new DailyFortunes game-mod JAR is not included in this release.

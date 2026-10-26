@@ -7,8 +7,8 @@ Use JDK 17 (`JAVA_HOME`). To build the server mod:
 ./gradlew build
 ```
 
-常驻网页后台还需要 Node.js 22 / npm，并复用 MemorialTitles 仓库中的共享业务代码。请将两个仓库放在同一目录：
-The independent web service also needs Node.js 22 / npm and shared code from MemorialTitles. Clone both repositories side by side:
+常驻网页后台还需要 Node.js 22 / npm，并复用 MemorialTitles 和 DailyFortunes 仓库中的共享业务代码。请将三个仓库放在同一目录：
+The independent web service also needs Node.js 22 / npm and shared code from MemorialTitles and DailyFortunes. Clone all three repositories side by side:
 
 ```text
 projects/
@@ -26,3 +26,7 @@ For a different layout set `-PmemorialTitlesDir=/path/to/MemorialTitles -PdailyF
 
 Windows 使用 `gradlew.bat`。模组产物位于 `build/libs/`，网页服务位于 `build/manager-service/`。
 On Windows use `gradlew.bat`. Mod output: `build/libs/`. Web service output: `build/manager-service/`.
+
+## Shared backend source versions
+
+Manager service 0.5.2 is built from [Forge v0.5.2](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/v0.5.2), [MemorialTitles 0bc729f](https://github.com/PixelMC-Projects/MemorialTitles/tree/0bc729f3030c5d0a0df6c8442a561c3a9cc8685a), and [DailyFortunes 9e5b6e6](https://github.com/PixelMC-Projects/DailyFortunes/tree/9e5b6e6c14fa4cede433eadc126b3abe172333f0). Forge and Fabric releases reuse the exact same service/supervisor ZIP bytes. The new DailyFortunes game-mod JAR is not included in this release.

@@ -8,7 +8,7 @@ import {FortuneDataSettings} from './FortuneDataSettings';
 import hoverBackground from './assets/fortune-hover.png';
 import slipImage from './assets/fortune-slip.png';
 const gradeKey=g=>GRADE_KEYS[GRADES.indexOf(g)]||'balanced';
-const fieldLabels={title:'题名',grade:'等级',poem:'签诗',interpretation:'解签',weight:'抽取权重',enabled:'参与抽取',timezone:'每日刷新时区',recovery:'遗失补领',archive:'自动归档',hover:'悬浮信息'};
+const fieldLabels={title:'题名',grade:'等级',poem:'签诗',interpretation:'解签',weight:'抽取权重',enabled:'参与抽取',timezone:'每日刷新时区',recovery:'遗失补领',archive:'自动归档',hover:'悬浮信息',retentionDays:'备份保留天数'};
 const stateLabel={archived:'已归档',loose:'待归档',unread:'未解签'};
 const todayOf=s=>s.today||new Intl.DateTimeFormat('sv-SE',{timeZone:s.settings?.timezone||'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 function usePage(path,revision){const [value,setValue]=useState(null),[error,setError]=useState('');useEffect(()=>{if(!path){setValue(null);setError('');return;}let active=true;const abort=new AbortController();setError('');api(path,undefined,{signal:abort.signal}).then(v=>{if(active)setValue(v);}).catch(e=>{if(active&&e.name!=='AbortError')setError(e.message);});return()=>{active=false;abort.abort();};},[path,revision]);return {value,error};}
@@ -16,7 +16,7 @@ function Grade({grade}){return <span className={'fp-grade '+gradeKey(grade)}><i/
 function SortHead({label,field,sort,onSort}){return <th scope="col" aria-sort={sort.key===field?(sort.direction==='asc'?'ascending':'descending'):'none'}><button onClick={()=>onSort({key:field,direction:sort.key===field&&sort.direction==='asc'?'desc':'asc'})}>{label}{sort.key===field?(sort.direction==='asc'?<ArrowUp size={12}/>:<ArrowDown size={12}/>):<ArrowsDownUp size={12}/>}</button></th>;}
 function Search({value,onChange,label,placeholder}){return <label className="fp-search"><MagnifyingGlass size={15}/><input aria-label={label} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}/>{value&&<button aria-label={'清空'+label} onClick={()=>onChange('')}>×</button>}</label>;}
 function Tabs({label,options,value,onChange}){return <div className="view-tabs" role="tablist" aria-label={label}>{options.map(o=><button key={o.value} role="tab" aria-selected={value===o.value} className={value===o.value?'active':''} onClick={()=>onChange(o.value)}>{o.label}{o.count!==undefined&&<small>{o.count??'—'}</small>}</button>)}</div>;}
-function Changes({changes=[]}){return <div className="fp-changes">{changes.map(c=><section key={c.field}><h3>{c.label||fieldLabels[c.field]||c.field}</h3><div><p><small>修改前</small>{display(c.before)}</p><ArrowDown size={14}/><p><small>修改后</small>{display(c.after)}</p></div></section>)}</div>;}
+function Changes({changes=[]}){return <div className="fp-changes">{changes.map(c=><section key={c.field}><h3>{fieldLabels[c.field]||c.label||c.field}</h3><div><p><small>修改前</small>{display(c.before)}</p><ArrowDown size={14}/><p><small>修改后</small>{display(c.after)}</p></div></section>)}</div>;}
 const display=v=>Array.isArray(v)?v.join('\n'):typeof v==='boolean'?(v?'开启':'关闭'):typeof v==='object'&&v?JSON.stringify(v):String(v??'—');
 function FortuneReading({fortune:f,mode='paper',owner='玩家',date=''}){return <div className={'fp-reading '+mode}>{mode==='hover'&&<img className="fp-reading-background" src={hoverBackground} alt=""/>}<div className="fp-reading-text"><header><strong>{f.title||'签文题名'}</strong><span className={'fp-grade-text '+gradeKey(f.grade)}>第 {numLabel(f.id)} 签 · {f.grade}</span></header><div className="fp-verse">{(f.poem||[]).map((line,i)=><p key={i}>{line||'……'}</p>)}</div><p className="fp-interpretation">{f.interpretation||'在这里填写这支签的解读。'}</p><footer><span><b>{owner}</b> 所得</span><time>{date.replaceAll('-','/')}</time></footer></div></div>;}
 
@@ -63,7 +63,7 @@ export function OperationHistory({context:c}){
 export function FortuneSettings({context:c}){
  const [baseline,setBaseline]=useState(()=>structuredClone(c.state.settings)),[draft,setDraft]=useState(()=>structuredClone(c.state.settings)),[tab,setTab]=useState('daily'),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const dirty=!equal(baseline,draft),change=(k,v)=>setDraft(d=>({...d,[k]:v})),savedKey=JSON.stringify(c.state.settings);
- useEffect(()=>{if(!dirty){setBaseline(structuredClone(c.state.settings));setDraft(structuredClone(c.state.settings));}},[savedKey]);
+ useEffect(()=>{if(!dirty){setBaseline(structuredClone(c.state.settings));setDraft(structuredClone(c.state.settings));}},[savedKey,dirty]);
  useEffect(()=>{c.setUnsaved(dirty);return()=>c.setUnsaved(false);},[dirty,c.setUnsaved]);
  useEffect(()=>{const guard=e=>{if(dirty){e.preventDefault();e.returnValue='';}};addEventListener('beforeunload',guard);return()=>removeEventListener('beforeunload',guard);},[dirty]);
  const save=async()=>{setBusy(true);setError('');try{await api('/settings',{settings:draft,expectedRevision:baseline.revision});const next=await c.refresh();setBaseline(structuredClone(next.settings));setDraft(structuredClone(next.settings));c.toast('抽签设置已保存');}catch(e){setError(e.message);}finally{setBusy(false);}};

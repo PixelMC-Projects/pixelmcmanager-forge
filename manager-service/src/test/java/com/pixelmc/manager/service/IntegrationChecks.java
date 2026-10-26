@@ -114,6 +114,11 @@ public final class IntegrationChecks {
     check(obj(send(client,url,"/api/dailyfortunes/backup/verify?file="+file,null,null,null).body()).get("verified").getAsBoolean(),"fortune backup SHA256 verifies");
     check(send(client,url,"/api/dailyfortunes/backup/download?file=..%2Fmanager.json",null,null,null).statusCode()==400,"fortune backup path traversal denied");
     check(send(client,url,"/api/dailyfortunes/config/export",null,null,null).statusCode()==200,"fortune configuration exports independently");
+    JsonObject configFile=obj(send(client,url,"/api/dailyfortunes/config/export",null,null,null).body());JsonObject importBody=new JsonObject();importBody.add("file",configFile);
+    var preview=send(client,url,"/api/dailyfortunes/config/preview",importBody,csrf,url);check(preview.statusCode()==200,"fortune configuration preview returns server validation context");
+    check(send(client,url,"/api/dailyfortunes/config/import",obj(preview.body()),csrf,url).statusCode()==200,"fortune import returns the complete preview context including concurrency stamp");
+    var capabilities=HttpRequest.newBuilder(URI.create(url+"/bridge/capabilities")).header("Content-Type","application/json").header("Authorization","Bearer "+token).header("X-PixelMC-Instance","local-test").POST(HttpRequest.BodyPublishers.ofString("{}")).build();
+    check(obj(client.send(capabilities,HttpResponse.BodyHandlers.ofString()).body()).get("titlesApi").getAsInt()==2,"authenticated read-only startup capability gate reports API version");
   }
   static Path legacyReminderBackup(Path backup)throws Exception{
     Path legacy=backup.resolveSibling(backup.getFileName()+".legacy.zip");
