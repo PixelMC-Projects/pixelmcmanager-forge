@@ -249,8 +249,8 @@ input::placeholder,textarea::placeholder { color:var(--muted); }
 .title-example-row small { color:var(--muted); font-size:11px; }
 .holder-count { margin-left:auto; display:flex; gap:5px; align-items:baseline; color:var(--secondary); font-size:13px; }
 .holder-count small { font-size:10px; }
-.drawer-overlay { position:fixed; inset:0; background:var(--overlay); z-index:60; display:flex; justify-content:flex-end; }
-.drawer { background:var(--panel); width:min(440px,100%); height:100%; border-left:1px solid var(--border); display:flex; flex-direction:column; box-shadow:-10px 0 70px #0001; animation:drawer-enter .18s ease-out; }
+.drawer-overlay { position:fixed; inset:0; background:var(--overlay); z-index:60; display:flex; justify-content:flex-end; padding:8px; }
+.drawer { background:var(--panel); width:min(440px,100%); height:100%; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; box-shadow:-12px 0 50px #0002; animation:drawer-enter .18s ease-out; }
 .drawer > header { display:flex; align-items:center; justify-content:space-between; padding:29px 28px; border-bottom:1px solid var(--soft-border); }
 .eyebrow { color:var(--muted); font-size:10px; }
 .drawer h2 { font-size:20px; font-weight:500; margin-top:5px; letter-spacing:-.03em; }

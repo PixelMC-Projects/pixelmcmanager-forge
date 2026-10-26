@@ -11,7 +11,7 @@ test('status reversal changes groups but keeps each group alphabetic',()=>{
 test('pinyin and numeric sorting are stable without mutating input',()=>{
   const rows=[{id:10,title:'张'},{id:2,title:'白'},{id:1,title:'陈'}];
   assert.deepEqual(sortFortunes(rows,{key:'title'}).map(f=>f.title),['白','陈','张']);
-  assert.deepEqual(sortFortunes(rows).map(f=>f.id),[1,2,10]);
+  assert.deepEqual(sortFortunes(rows,{key:'id'}).map(f=>f.id),[1,2,10]);
   assert.deepEqual(rows.map(f=>f.id),[10,2,1]);
 });
 test('probabilities include the whole enabled pool and ignore disabled weights',()=>{
@@ -21,13 +21,25 @@ test('probabilities include the whole enabled pool and ignore disabled weights',
   assert.equal(probability(rows[2],rows),0);
   assert.equal(probability(rows[3],[rows[3]]),0);
 });
-test('calendar has 42 Sunday-first cells across month and year boundaries',()=>{
+test('grade ordering keeps names in pinyin order within each grade',()=>{
+  const rows=[{id:1,title:'张',grade:'上上签'},{id:2,title:'白',grade:'中平签'},{id:3,title:'陈',grade:'上上签'}];
+  assert.deepEqual(sortFortunes(rows).map(f=>f.id),[3,1,2]);
+  assert.deepEqual(sortFortunes(rows,{key:'grade',direction:'desc'}).map(f=>f.id),[2,3,1]);
+});
+test('calendar removes the empty sixth week without dropping late-month dates',()=>{
   const cells=monthCells(2026,10);
-  assert.equal(cells.length,42);assert.equal(cells[0].date,'2026-09-27');
+  assert.equal(cells.length,35);assert.equal(cells[0].date,'2026-09-27');
   assert.equal(cells[4].date,'2026-10-01');assert.equal(cells[4].inMonth,true);
   assert.equal(monthCells(2028,2).filter(c=>c.inMonth).length,29);
   assert.equal(nextMonth('2026-12',1),'2027-01');
   assert.equal(nextMonth('2026-01',-1),'2025-12');
+  assert.equal(monthCells(2026,8).length,42);
+  for(let year=2020;year<=2040;year++)for(let month=1;month<=12;month++){
+    const grid=monthCells(year,month),days=new Date(Date.UTC(year,month,0)).getUTCDate();
+    assert.equal(grid.filter(c=>c.inMonth).length,days);
+    assert.equal(new Date(grid[0].date+'T00:00:00Z').getUTCDay(),0);
+    assert.ok([35,42].includes(grid.length));
+  }
 });
 test('selective undo preserves unrelated fields and refuses later edits',()=>{
   const change=[{field:'title',label:'题名',before:'旧题',after:'新题'}];

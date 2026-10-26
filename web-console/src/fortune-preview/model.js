@@ -9,11 +9,11 @@ export const totalWeight=list=>list.reduce((n,f)=>n+(participates(f)?Number(f.we
 export const probability=(f,list)=>totalWeight(list)?(participates(f)?Number(f.weight):0)/totalWeight(list)*100:0;
 export const dateTime=value=>new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value));
 export const numLabel=n=>String(n).padStart(2,'0');
-export function sortFortunes(rows,{key='id',direction='asc'}={}){
+export function sortFortunes(rows,{key='grade',direction='asc'}={}){
   const sign=direction==='asc'?1:-1;
   return [...rows].sort((a,b)=>{
     let comparison=key==='title'?collator.compare(a.title,b.title):key==='grade'?GRADES.indexOf(a.grade)-GRADES.indexOf(b.grade):key==='probability'?(participates(a)?a.weight:0)-(participates(b)?b.weight:0):Number(a[key])-Number(b[key]);
-    return comparison*sign||a.id-b.id;
+    return comparison*sign||collator.compare(a.title,b.title)||a.id-b.id;
   });
 }
 export function sortProfiles(rows,{key='status',direction='asc'}={}){
@@ -26,7 +26,9 @@ export function sortProfiles(rows,{key='status',direction='asc'}={}){
 }
 export function monthCells(year,month){
   const offset=new Date(Date.UTC(year,month-1,1)).getUTCDay();
-  return Array.from({length:42},(_,i)=>{const d=new Date(Date.UTC(year,month-1,1-offset+i));return {date:d.toISOString().slice(0,10),day:d.getUTCDate(),inMonth:d.getUTCMonth()===month-1};});
+  const days=new Date(Date.UTC(year,month,0)).getUTCDate();
+  const length=Math.max(35,Math.ceil((offset+days)/7)*7);
+  return Array.from({length},(_,i)=>{const d=new Date(Date.UTC(year,month-1,1-offset+i));return {date:d.toISOString().slice(0,10),day:d.getUTCDate(),inMonth:d.getUTCMonth()===month-1};});
 }
 export function nextMonth(value,step){const [y,m]=value.split('-').map(Number),d=new Date(Date.UTC(y,m-1+step,1));return d.toISOString().slice(0,7);}
 export function applySelectiveUndo(current,changes){
