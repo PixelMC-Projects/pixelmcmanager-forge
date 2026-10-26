@@ -17,6 +17,6 @@ if [[ ! -f "$stage/pre-upgrade-backup-complete.txt" ]]; then
  if ! "${backup[@]}" > "$stage/pre-upgrade-backup.log" 2>&1; then echo '[Manager UI staging] Native backup failed; retaining original service.' >&2; exec "${command[@]}"; fi
  date -u +%FT%TZ > "$stage/pre-upgrade-backup-complete.txt"
 fi
-command[$jar_index]="$stage/pixelmc-manager-service-0.5.2.jar"
-echo '[Manager UI staging] Starting backend 0.5.2 with original JVM arguments after native backup.'
+command[$jar_index]="$stage/pixelmc-manager-service-0.5.2-web.1.jar"
+echo '[Manager UI staging] Starting backend 0.5.2-web.1 with original JVM arguments after native backup.'
 exec "${command[@]}"
