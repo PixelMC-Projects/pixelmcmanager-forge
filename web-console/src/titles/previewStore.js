@@ -1,3 +1,4 @@
+import {sortTitlePlayers} from './sorting';
 import { playerExamples } from '../telemetry';
 const copy=value=>structuredClone(value), now=Date.now(), day=86400000;
 const descriptions=['纪念共同走过的第一段旅程。','从这里出发，前往下一个故事。','献给把想象变为方块的建造者。','一次值得收藏的相遇。','献给走遍山海的旅人。','谢谢你让这里成为家。'];
@@ -18,7 +19,11 @@ export async function previewApi(path,body,options={}){
   if(options.signal?.aborted)throw new DOMException('Aborted','AbortError');
   const url=new URL(path,'http://local-preview'),route=url.pathname,q=url.searchParams;
   if(route==='/state')return titleSnapshot();
-  if(route==='/players')return page(profiles.filter(p=>(q.get('online')!=='true'||p.online)&&`${p.name} ${p.id}`.toLowerCase().includes((q.get('q')||'').toLowerCase())).sort((a,b)=>Number(b.online)-Number(a.online)||byName(a,b)).map(p=>({...p,ownedCount:p.owned.length})),q);
+  if(route==='/players'){
+    const presence=q.get('presence')||(q.get('online')==='true'?'online':'all');
+    const rows=profiles.filter(p=>(presence==='all'||p.online===(presence==='online'))&&`${p.name} ${p.id}`.toLowerCase().includes((q.get('q')||'').toLowerCase())).sort((a,b)=>Number(b.online)-Number(a.online)||byName(a,b)).map(p=>({...p,ownedCount:p.owned.length}));
+    return {...page(sortTitlePlayers(rows,{key:q.get('sort')||'status',direction:q.get('direction')||'asc'},titles),q),presenceCounts:{all:profiles.length,online:profiles.filter(p=>p.online).length,offline:profiles.filter(p=>!p.online).length}};
+  }
   if(route.startsWith('/players/')){const p=profiles.find(p=>p.id===route.split('/').at(-1));if(!p)throw new Error('玩家资料不存在。');return copy({profile:p,owned:p.owned,receipts:p.receipts,online:p.online,equipped:p.equipped,avatarVersion:1});}
   if(route==='/title-holders')return page(holders(q.get('title')).sort(byName).map(p=>({...p,acquiredAt:p.owned.find(o=>o.title===q.get('title')).acquiredAt})),q);
   if(route==='/titles'){
@@ -38,7 +43,11 @@ export async function previewApi(path,body,options={}){
   }
   if(route==='/title-delete/preview'){const title=titles.find(t=>t.id===body.title);if(!title)throw new Error('称号不存在。');return copy({name:title.name,stamp:title.revision,holders:holders(title.id).length,equipped:profiles.filter(p=>p.equipped===title.id).length,receipts:0,reward:settings.reward===title.id});}
   if(route==='/title-delete/confirm'){const title=titles.find(t=>t.id===body.title);if(!title||title.revision!==body.stamp||title.name.segments.map(s=>s.text).join('')!==body.confirmName)throw new Error('称号或确认文字已变动，请重新核对。');const count=holders(title.id).length;profiles.forEach(p=>{p.owned=p.owned.filter(o=>o.title!==title.id);if(p.equipped===title.id)p.equipped='';});titles=titles.filter(t=>t.id!==title.id);if(settings.reward===title.id)settings.reward='';log('TITLE_DELETE','', '',`本地示例删除「${body.confirmName}」`);return {removedHolders:count};}
-  if(route==='/history')return page(history.filter(h=>(!q.get('player')||h.target===q.get('player'))&&(!q.get('action')||q.get('action').split(',').includes(h.action))&&JSON.stringify(h).toLowerCase().includes((q.get('q')||'').toLowerCase())).sort((a,b)=>b.at-a.at),q);
+  if(route==='/history'){
+    const scope=history.filter(h=>!q.get('player')||h.target===q.get('player'));
+    const rows=scope.filter(h=>(!q.get('action')||q.get('action').split(',').includes(h.action))&&JSON.stringify(h).toLowerCase().includes((q.get('q')||'').toLowerCase())).sort((a,b)=>b.at-a.at);
+    return {...page(rows,q),categoryCounts:[scope.length,scope.filter(h=>['GRANT','REVOKE'].includes(h.action)).length,scope.filter(h=>['TITLE_SAVE','TITLE_DELETE','RELOAD'].includes(h.action)).length]};
+  }
   if(/^\/history\/[^/]+\/changes$/.test(route))return {rows:[]};
   if(route==='/backups')return copy(backups);
   if(route==='/backup'){const file='preview-'+Date.now()+'.json';backups.unshift({file,modified:Date.now(),bytes:18720,checksum:true});return {file};}

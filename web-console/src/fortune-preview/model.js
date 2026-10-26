@@ -20,7 +20,8 @@ export function sortProfiles(rows,{key='status',direction='asc'}={}){
   const sign=direction==='asc'?1:-1;
   return [...rows].sort((a,b)=>{
     if(key==='status')return (Number(b.online)-Number(a.online))*sign||collator.compare(a.name,b.name)||a.id.localeCompare(b.id);
-    const comparison=key==='name'?collator.compare(a.name,b.name):key==='latest'?a.latest.localeCompare(b.latest):Number(a[key])-Number(b[key]);
+    if(key==='latest'&&(a.latestAt==null||b.latestAt==null))return a.latestAt==null&&b.latestAt==null?collator.compare(a.name,b.name):a.latestAt==null?1:-1;
+    const comparison=key==='name'?collator.compare(a.name,b.name):key==='latest'?Number(a.latestAt||0)-Number(b.latestAt||0):Number(a[key])-Number(b[key]);
     return comparison*sign||collator.compare(a.name,b.name)||a.id.localeCompare(b.id);
   });
 }

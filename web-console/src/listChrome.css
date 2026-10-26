@@ -34,3 +34,19 @@
 @supports not selector(::-webkit-scrollbar) {
   .app .titles-module,.app .titles-module * { scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
 }
+
+.app .titles-module .view-tabs button{display:inline-flex;align-items:center;gap:7px}
+.app .titles-module .tab-count{font-size:10px;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}
+.app .titles-module .history-action{display:flex;align-items:center;gap:10px}
+.app .titles-module .history-action>svg{color:var(--muted);flex-shrink:0}
+
+.app .titles-module .column-sort{display:inline-flex;align-items:center;gap:7px;padding:0;min-height:32px;font-size:11px;color:inherit;background:transparent;white-space:nowrap}
+.app .titles-module .column-sort>svg{color:var(--muted);opacity:.45}
+.app .titles-module .column-sort[aria-pressed=true]{color:var(--secondary)}
+.app .titles-module .column-sort[aria-pressed=true]>svg{color:var(--accent);opacity:1}
+.app .titles-module .view-bar{flex-wrap:wrap}
+.app .titles-module .view-tabs{flex-wrap:wrap;row-gap:0}
+
+/* Keep database status inside the data page, using its section spacing once. */
+.app .titles-module .settings-content > .settings-database-card { margin:0; max-width:none; }
+.app .titles-module .settings-database-card + .fp-reset-demo { margin-top:18px; }

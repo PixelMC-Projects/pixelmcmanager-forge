@@ -31,3 +31,9 @@ Changes stay in this browser and can be reset in Settings. This entry uses local
 - 保留既定圆角侧栏、插件切换拖影、紧凑预览、等级与拼音排序，以及月历右下角等级渐变。
 
 合并时检查 Manager 网页服务和 MemorialTitles 独立网页资源；如资源嵌入 JAR，再重建对应 JAR。DailyFortunes 仍是隔离的模拟页面，不应被作为已完成的游戏模组发布。
+
+- 页面标题右侧统一标注插件名（MemorialTitles / DailyFortunes）；删除称号页面标签栏上方的资料库说明横栏。
+
+- 完整规范与新增验收项见 [插件页面风格规范](../../docs/插件页面风格规范.md)。
+- 新增 Titles 全量分类计数、离线玩家及玩家排序依赖正式接口升级；当前仅 mock 完成，不可将本分支前端直接部署为完成版。
+- 最新修订：插件名字前状态点、最近抽签时分、日期无创建于前缀、操作记录图标与固定新到旧、Titles 表头排序/直接密度按钮、Titles 风格设置及备份状态模块。

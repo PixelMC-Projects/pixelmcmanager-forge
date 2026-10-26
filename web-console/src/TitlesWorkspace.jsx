@@ -12,7 +12,6 @@ export function TitlesWorkspace({page,preferences,toast,navigate,setUnsaved}){
   if(!state)return <p className="quiet-note">正在连接称号数据…</p>;
   const context={state,writable:!!state.health?.database,refresh,toast,revision,density,setDensity,setUnsaved};
   return <div className="titles-module" data-theme={preferences.theme} data-density={density}>
-    <div className="module-preview-banner"><span>纪念称号</span>独立称号资料库 · 收藏跨整合包保留</div>
     {page==='titles'?<Titles context={context}/>:page==='title-players'?<Players context={context} viewHistory={id=>{setHistoryPlayer(id);navigate('title-activity');}}/>:page==='title-activity'?<History context={context} player={historyPlayer} clearPlayer={()=>setHistoryPlayer('')}/>:<Settings context={context}/>}
   </div>;
 }

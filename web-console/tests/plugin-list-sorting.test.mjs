@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {sortTitleRows,sortTitlePlayers} from '../src/titles/sorting.js';
+import {sortProfiles} from '../src/fortune-preview/model.js';
+const title=(id,name,rest={})=>({id,name:{segments:[{text:name}]},...rest});
+test('title holder counts compare numbers and leave source array intact',()=>{const rows=[title('a','A'),title('b','B')];assert.deepEqual(sortTitleRows(rows,{key:'holders',direction:'desc'},{a:2,b:10}).map(t=>t.id),['b','a']);assert.equal(rows[0].id,'a');});
+test('missing title categories stay last in either direction',()=>{const rows=[title('a','A',{category:''}),title('b','B',{category:'纪念'})];for(const direction of ['asc','desc'])assert.equal(sortTitleRows(rows,{key:'category',direction})[1].id,'a');});
+test('presence reversal changes groups but preserves names in each',()=>{const rows=[{id:'1',name:'Z',online:true},{id:'2',name:'B',online:false},{id:'3',name:'A',online:true}];assert.deepEqual(sortTitlePlayers(rows,{key:'status',direction:'asc'}).map(p=>p.name),['A','Z','B']);assert.deepEqual(sortTitlePlayers(rows,{key:'status',direction:'desc'}).map(p=>p.name),['B','A','Z']);});
+test('equipped titles sort by rendered name, not internal ID',()=>{const titles=[title('z','Apple'),title('a','Zebra')],players=[{id:'1',name:'A',equipped:'a'},{id:'2',name:'B',equipped:'z'},{id:'3',name:'C',equipped:''}];assert.deepEqual(sortTitlePlayers(players,{key:'equipped',direction:'asc'},titles).map(p=>p.id),['2','1','3']);});
+test('numeric player sorting precedes pagination',()=>{const rows=Array.from({length:25},(_,i)=>({id:String(i),name:String(i),ownedCount:i}));assert.deepEqual(sortTitlePlayers(rows,{key:'ownedCount',direction:'desc'}).slice(0,3).map(p=>p.ownedCount),[24,23,22]);});
+test('recent draw sorts exact same-day timestamps and puts missing last',()=>{const rows=[{id:'1',name:'A',latestAt:200},{id:'2',name:'B',latestAt:100},{id:'3',name:'C',latestAt:null}];assert.deepEqual(sortProfiles(rows,{key:'latest',direction:'asc'}).map(p=>p.id),['2','1','3']);assert.deepEqual(sortProfiles(rows,{key:'latest',direction:'desc'}).map(p=>p.id),['1','2','3']);});

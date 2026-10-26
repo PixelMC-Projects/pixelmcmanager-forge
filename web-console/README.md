@@ -37,3 +37,8 @@ The interface is served by [Manager Service](../manager-service/README.md); a se
 [AGPL-3.0-only](../LICENSE) · [Minecraft linking permission](../LICENSE-EXCEPTION.md).
 保留版权与署名；分发修改版或使用修改版提供联网服务时，按许可证提供对应源码。
 Retain copyright and attribution; provide corresponding source when distributing modifications or offering modified software over a network, as required by the license.
+
+
+## 插件界面开发
+
+新插件页面和现有插件调整须遵循 [插件页面风格规范](docs/插件页面风格规范.md)，按其中的组件映射与验收清单实施。

@@ -33,3 +33,7 @@ Jar filenames may include loader, Minecraft version, and mod version.
 Release notes must include a "兼容版本与附件" section.
 List each supported Minecraft version and the exact jar asset name there.
 Do not use a single "适用环境" section as the only compatibility description, because the same mod version may later include multiple Minecraft versions.
+
+## Plugin web UI
+
+Before creating or modifying plugin pages, read `web-console/docs/插件页面风格规范.md`. Reuse its MemorialTitles component references and record acceptance evidence against its checklist. Keep subsequent user decisions in that standard. Core Manager dashboard patterns are not the plugin settings baseline. Do not claim unverified cases or prototype-only APIs as production-ready.

@@ -23,4 +23,4 @@ export function makeDemo(){
   return {schema:1,fortunes,profiles,records,settings,audit};
 }
 export function readDemo(){try{const saved=JSON.parse(localStorage.getItem(STORAGE_KEY));if(saved?.schema===1&&Array.isArray(saved.fortunes)&&saved.fortunes.length&&Array.isArray(saved.profiles)&&Array.isArray(saved.records)&&Array.isArray(saved.audit)&&saved.settings)return saved;}catch{}return makeDemo();}
-export function profileStats(p,records){const rows=records.filter(r=>r.player===p.id);return {...p,total:rows.length,archived:rows.filter(r=>r.state==='archived').length,unread:rows.filter(r=>r.state==='unread').length,latest:rows.at(-1)?.date||''};}
+export function profileStats(p,records){const rows=records.filter(r=>r.player===p.id);return {...p,total:rows.length,archived:rows.filter(r=>r.state==='archived').length,unread:rows.filter(r=>r.state==='unread').length,latest:rows.at(-1)?.date||'',latestAt:rows.length?Math.max(...rows.map(r=>r.at)):null};}
