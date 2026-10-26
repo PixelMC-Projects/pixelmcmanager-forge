@@ -183,8 +183,8 @@
 .titles-module .view-note { margin-left:auto; }
 .titles-module .content-area { width:100%; }
 .titles-module .view-tabs { margin:0; min-height:0; border-bottom:0; }
-.titles-module .view-tabs button { padding:8px 10px; }
-.titles-module .view-tabs button.active:after { display:none; }
+.titles-module .view-tabs button { padding:14px 1px; }
+
 .dimension-card-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
 .dimension-card .card-heading { margin-bottom:8px; }
 .dimension-identity { font-size:11px; color:var(--muted); }

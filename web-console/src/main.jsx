@@ -13,3 +13,5 @@ createRoot(document.getElementById("root")).render(
     <AuthRoot />
   </React.StrictMode>,
 );
+
+import "./listChrome.css";

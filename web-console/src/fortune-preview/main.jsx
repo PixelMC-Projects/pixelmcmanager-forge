@@ -9,3 +9,5 @@ import '../titles/module.css';
 import './preview.css';
 import {PreviewApp} from './PreviewApp';
 createRoot(document.getElementById('root')).render(<React.StrictMode><PreviewApp/></React.StrictMode>);
+
+import "../listChrome.css";
