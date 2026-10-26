@@ -6,6 +6,7 @@ import cn.pixelmc.memorialtitles.service.*;
 import cn.pixelmc.memorialtitles.web.*;
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpExchange;
+import cn.pixelmc.dailyfortunes.service.FortuneBackend;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -16,6 +17,7 @@ import java.util.function.BooleanSupplier;
 public final class ManagerController implements AdminWebServer.Host,AutoCloseable {
   public final ManagerStore store;
   public final TitleService titles;
+  public final FortuneBackend fortunes;
   public final ServiceConfig config;
   public final Path data;
   public AdminWebServer web;
@@ -32,6 +34,7 @@ public final class ManagerController implements AdminWebServer.Host,AutoCloseabl
     this.config=config;this.data=data;Files.createDirectories(data);
     store=new ManagerStore(config.database());try{store.migrate();}catch(Exception unavailable){maintenanceError="Manager数据库暂不可用，自动重连中";}
     titles=new TitleService(new cn.pixelmc.memorialtitles.persistence.Database(config.titlesDatabase()));
+    fortunes=config.fortunesEnabled()?new FortuneBackend(config.fortunesDatabase().url(),config.fortunesDatabase().user(),config.fortunesDatabase().password(),data.resolve("dailyfortunes")):null;
     titles.listen(s->{titleRevision.incrementAndGet();mirror();});
     if(config.titlesEnabled())try{titles.reconnect().get(15,TimeUnit.SECONDS);}catch(Exception unavailable){maintenanceError="称号数据库暂不可用，其他功能继续运行";}
     try{JsonObject state=JsonParser.parseString(Files.readString(data.resolve("maintenance.json"))).getAsJsonObject();lastBackup=state.get("lastBackup").getAsLong();}catch(Exception ignored){}
@@ -60,17 +63,25 @@ public final class ManagerController implements AdminWebServer.Host,AutoCloseabl
     if(!auth.startsWith("Bearer ")||!store.authenticate(instance,auth.substring(7))){json(e,403,Map.of("error","桥接认证失败"));return true;}
     JsonObject b=body(e);
     switch(path){
+      case "/bridge/capabilities"->json(e,200,Map.of("version","0.5.2","protocol",1,"titlesApi",2,"titlesHealthy",titles.healthy(),"fortunesEnabled",fortunes!=null));
       case "/bridge/hello"->{JsonObject response=store.hello(instance,b);response.addProperty("publicUrl",config.publicUrl());response.addProperty("protocol",1);json(e,200,response);}
       case "/bridge/snapshot"->{JsonObject response=store.ingest(instance,b);if(response.has("accepted")&&response.get("accepted").getAsBoolean()){
         Set<UUID> players=new HashSet<>();for(JsonElement raw:array(b,"players",2000)){JsonObject p=raw.getAsJsonObject();if(!bool(p,"fake",false))players.add(UUID.fromString(text(p,"id",36)));}
         Presence before=presence.put(instance,new Presence(Set.copyOf(players),bool(b,"stopped",false)?0:System.currentTimeMillis()+10000));
         if(web!=null){if(before!=null)for(UUID id:before.players())if(!players.contains(id))web.avatars.logout(id);for(JsonElement raw:array(b,"logins",512)){UUID id=UUID.fromString(text(raw.getAsJsonObject(),"uuid",36));if(players.contains(id))web.avatars.login(id);}}
       }json(e,200,response);}
-      case "/bridge/rpc"->json(e,200,titleRpc(instance,b));
+      case "/bridge/rpc"->{if(text(b,"extension",64).equals("dailyfortunes"))json(e,200,fortuneRpc(instance,b));else json(e,200,titleRpc(instance,b));}
       default->json(e,404,Map.of("error","桥接路由不存在"));
     }
     return true;
   }
+  private JsonObject fortuneRpc(String instance,JsonObject b)throws Exception{
+    if(fortunes==null)throw new IllegalArgumentException("DailyFortunes 扩展未启用");
+    Presence report=presence.get(instance);Set<UUID> admitted=report!=null&&report.until()>System.currentTimeMillis()?report.players():Set.of();
+    JsonObject response=new JsonObject();try{response.add("result",fortunes.rpc(text(b,"op",64),object(b,"data"),text(b,"playerProof",36),admitted));}
+    catch(Exception error){response.addProperty("error",fortuneError(error));}response.addProperty("healthy",bool(fortunes.status(),"database",false));return response;
+  }
+  private static String fortuneError(Exception error){return error instanceof IllegalArgumentException||error instanceof IllegalStateException||error instanceof SecurityException?Objects.toString(error.getMessage(),"抽签操作未完成"):"抽签数据暂不可用，请稍后重试";}
   private JsonObject titleRpc(String instance,JsonObject b)throws Exception{
     if(!config.titlesEnabled()||!text(b,"extension",64).equals("memorialtitles"))throw new IllegalArgumentException("扩展未启用");
     String op=text(b,"op",64);JsonObject request=object(b,"data");JsonArray args=array(request,"args",16);JsonObject response=new JsonObject();
@@ -105,14 +116,15 @@ public final class ManagerController implements AdminWebServer.Host,AutoCloseabl
   }
   private String instance(Map<String,String> q)throws Exception{String id=q.getOrDefault("instance","");if(!id.isBlank())return Wire.id(id);var all=store.instances();return all.isEmpty()?"":all.get(0).get("id").getAsString();}
   private JsonObject bootstrap(String instance,String archive)throws Exception{
-    JsonObject out=new JsonObject();out.addProperty("version","0.5.1");out.add("instances",JSON.toJsonTree(store.instances()));
+    JsonObject out=new JsonObject();out.addProperty("version","0.5.2");out.add("instances",JSON.toJsonTree(store.instances()));
     out.add("archives",JSON.toJsonTree(instance.isBlank()?List.of():store.archives(instance)));
     JsonObject state=instance.isBlank()?new JsonObject():store.state(instance,archive);avatars(state);out.add("state",state);out.addProperty("databaseHealthy",true);out.add("extensions",extensions());
     out.addProperty("titleRevision",boot+":"+titleRevision.get());out.addProperty("maintenanceError",maintenanceError);out.addProperty("lastBackup",lastBackup);return out;
   }
   private void avatars(JsonObject state){if(web==null)return;if(state.has("players"))for(JsonElement raw:state.getAsJsonArray("players")){JsonObject p=raw.getAsJsonObject();if(!bool(p,"fake",false)){UUID id=UUID.fromString(text(p,"id",36));long version=web.avatars.version(id);p.addProperty("avatarVersion",version);p.addProperty("avatarUrl","/api/manager/avatars/"+id+".png?v="+version);}}}
-  private JsonArray extensions(){JsonArray values=new JsonArray();if(config.titlesEnabled()){JsonObject title=new JsonObject();title.addProperty("id","memorialtitles");title.addProperty("name","MemorialTitles");title.addProperty("label","纪念称号");title.addProperty("page","titles");title.addProperty("preference","titles");title.addProperty("titles",titles.snapshot().titles().size());title.addProperty("players",titles.snapshot().players().size());title.addProperty("healthy",titles.healthy());title.add("capabilities",JSON.toJsonTree(List.of("称号档案","玩家收藏","首登奖励","操作记录")));values.add(title);}return values;}
+  private JsonArray extensions(){JsonArray values=new JsonArray();if(config.titlesEnabled()){JsonObject title=new JsonObject();title.addProperty("id","memorialtitles");title.addProperty("name","MemorialTitles");title.addProperty("label","纪念称号");title.addProperty("page","titles");title.addProperty("preference","titles");title.addProperty("titles",titles.snapshot().titles().size());title.addProperty("players",titles.snapshot().players().size());title.addProperty("healthy",titles.healthy());title.add("capabilities",JSON.toJsonTree(List.of("称号档案","玩家收藏","首登奖励","操作记录")));values.add(title);}if(fortunes!=null){JsonObject extension=new JsonObject();extension.addProperty("id","dailyfortunes");extension.addProperty("name","DailyFortunes");extension.addProperty("label","每日一签");extension.addProperty("page","fortunes");extension.addProperty("preference","fortunes");extension.addProperty("description","每日抽签、永久签历与收藏，独立数据库持久化。");extension.addProperty("healthy",bool(fortunes.status(),"database",false));extension.add("capabilities",JSON.toJsonTree(List.of("签文档案","玩家签历","操作记录","抽签设置")));values.add(extension);}return values;}
   @Override public boolean adminRoute(HttpExchange e,String path,TitleService.Actor actor,BooleanSupplier authorized)throws Exception{
+    if(path.startsWith("/api/dailyfortunes/")){if(fortunes==null){json(e,404,Map.of("error","DailyFortunes 扩展未启用"));return true;}String method=e.getRequestMethod();if(!method.equals("GET")&&!method.equals("POST")){json(e,405,Map.of("error","仅支持 GET / POST"));return true;}try{json(e,200,fortunes.request(method,path.substring("/api/dailyfortunes".length()),method.equals("POST")?body(e):new JsonObject(),query(e),actor.player().toString(),online()));}catch(SecurityException denied){json(e,403,Map.of("error",fortuneError(denied)));}catch(IllegalArgumentException invalid){json(e,400,Map.of("error",fortuneError(invalid)));}catch(IllegalStateException conflict){json(e,409,Map.of("error",fortuneError(conflict)));}catch(Exception unavailable){json(e,503,Map.of("error","抽签数据暂不可用，请稍后重试"));}return true;}
     if(!path.startsWith("/api/manager/"))return false;var q=query(e);String instance=instance(q),archive=q.getOrDefault("archive","");boolean post=e.getRequestMethod().equals("POST");
     if(path.startsWith("/api/manager/avatars/")&&!post){String tail=path.substring("/api/manager/avatars/".length());if(!tail.endsWith(".png"))throw new IllegalArgumentException("头像路径无效");UUID id=UUID.fromString(tail.substring(0,tail.length()-4));boolean known=store.lifetime(id.toString()).get("archives").getAsInt()>0;if(!known&&!config.owners().contains(id))throw new IllegalArgumentException("玩家未登记");byte[] bytes;if(known)bytes=web.avatars.head(id);else try(var in=getClass().getResourceAsStream("/web/default-heads/"+Math.floorMod(id.hashCode(),18)+".png")){bytes=Objects.requireNonNull(in).readAllBytes();}e.getResponseHeaders().set("Content-Type","image/png");e.sendResponseHeaders(200,bytes.length);e.getResponseBody().write(bytes);return true;}
     switch(path){
@@ -143,5 +155,5 @@ public final class ManagerController implements AdminWebServer.Host,AutoCloseabl
   public synchronized Path backupAll()throws Exception{Path file=ManagerBackup.write(store,data,titles,config);lastBackup=System.currentTimeMillis();ServiceConfig.atomic(data.resolve("maintenance.json"),JSON.toJson(Map.of("lastBackup",lastBackup)));ManagerBackup.retain(data,titles.snapshot().settings().retentionDays());return file;}
   private final AtomicBoolean closing=new AtomicBoolean();
   private final CountDownLatch closed=new CountDownLatch(1);
-  @Override public void close(){if(!closing.compareAndSet(false,true)){try{closed.await(12,TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}return;}try{tasks.shutdownNow();if(web!=null)web.close();titles.close();}finally{closed.countDown();}}
+  @Override public void close(){if(!closing.compareAndSet(false,true)){try{closed.await(12,TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}return;}try{tasks.shutdownNow();if(web!=null)web.close();if(fortunes!=null)fortunes.close();titles.close();}finally{closed.countDown();}}
 }

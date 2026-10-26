@@ -14,5 +14,11 @@
   "port": 18800,
   "publicUrl": "",
   "owners": [],
-  "dataDirectory": "data"
+  "dataDirectory": "data",
+  "fortunesDatabase": {
+    "url": "jdbc:mariadb://memorialtitles-db:3306/dailyfortunes",
+    "user": "dailyfortunes",
+    "password": "REPLACE_BEFORE_START"
+  },
+  "fortunesEnabled": false
 }

@@ -138,14 +138,16 @@ tasks.named('check').configure { dependsOn 'restartLogicTest' }
 def titlesRoot = providers.gradleProperty('memorialTitlesDir').map { file(it) }.getOrElse(
         file('../MemorialTitles').exists() ? file('../MemorialTitles') : file('../../../MemorialTitles'))
 def titlesSource = new File(titlesRoot, 'src/main/java')
+def fortunesRoot = providers.gradleProperty('dailyFortunesDir').map { file(it) }.getOrElse(
+        file('../DailyFortunes').exists() ? file('../DailyFortunes') : file('../../../DailyFortunes'))
 configurations { managerJdbc }
 dependencies { managerJdbc('org.mariadb.jdbc:mariadb-java-client:3.5.6') { transitive = false } }
 sourceSets {
     managerService {
-        java.srcDirs = ['manager-service/src/main/java', titlesSource]
+        java.srcDirs = ['manager-service/src/main/java', titlesSource, new File(fortunesRoot, 'src/main/java')]
         java.include 'com/pixelmc/manager/service/**', 'cn/pixelmc/memorialtitles/domain/**',
                 'cn/pixelmc/memorialtitles/persistence/**', 'cn/pixelmc/memorialtitles/service/**',
-                'cn/pixelmc/memorialtitles/web/**', 'cn/pixelmc/memorialtitles/forge/ServerFiles.java'
+                'cn/pixelmc/memorialtitles/web/**', 'cn/pixelmc/memorialtitles/forge/ServerFiles.java', 'cn/pixelmc/dailyfortunes/service/**'
         compileClasspath = files(restartGson) + configurations.managerJdbc
         runtimeClasspath = output + compileClasspath
     }
@@ -173,6 +175,7 @@ tasks.register('buildManagerWeb', Exec) {
 tasks.named('processManagerServiceResources').configure {
     dependsOn 'buildManagerWeb'
     from('web-console/dist/client') { into 'web' }
+    from(new File(fortunesRoot, 'src/main/resources/defaults')) { into 'defaults' }
 }
 tasks.register('managerServiceJar', Jar) {
     dependsOn 'managerServiceClasses'
@@ -200,6 +203,12 @@ tasks.register('bridgeLogicTest', JavaExec) {
     mainClass = 'com.pixelmc.pixelmcmanager.bridge.BridgeLogicTest'
 }
 tasks.named('check').configure { dependsOn 'bridgeLogicTest' }
+tasks.register('bridgeAdmissionTest', JavaExec) {
+    dependsOn restartChecksClasses
+    classpath = sourceSets.restartChecks.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.pixelmc.pixelmcmanager.bridge.BridgeAdmissionTest'
+}
+tasks.named('check').configure { dependsOn 'bridgeAdmissionTest' }
 
 tasks.register('lifecycleShutdownTest', JavaExec) {
     dependsOn restartChecksClasses

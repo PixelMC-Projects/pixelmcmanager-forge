@@ -15,5 +15,7 @@ export default defineConfig({
       clientFiles: ["./src/main.jsx"],
     },
   },
-  plugins: [react()],
+  plugins: [{name:'production-data-boundary',enforce:'pre',resolveId(source){
+    if(/fortune-preview|prototypeTelemetry|titles\/previewStore/.test(source))throw new Error('Production must not import preview data: '+source);
+  }},react()],
 });

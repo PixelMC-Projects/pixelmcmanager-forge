@@ -24,6 +24,9 @@ PixelMC Manager 的常驻网页后台。游戏服关闭时，仍可访问玩家�
 4. 执行 `java -jar service.jar instance manager.json minecraft` 注册游戏实例。将生成的 `data/credentials/minecraft-bridge.json` 复制到游戏服的 `config/pixelmcmanager-bridge.json`；`baseUrl` 必须是游戏进程能够访问的后台地址，容器之间使用互通的容器网络地址。
 5. 执行 `java -jar service.jar run manager.json` 启动后台，再启动装有 Manager 模组的游戏服。浏览器访问 `publicUrl` 登录，首次连接后在后台绑定当前整合包/存档。
 6. 启用称号扩展时，准备称号数据库并填写 `titlesDatabase`，设置 `titlesEnabled: true`；安装 [MemorialTitles](https://github.com/PixelMC-Projects/MemorialTitles)，按其 README 配置 Manager 模式。停止后台可在控制台输入 `stop`，MCSManager 也使用此停止命令。
+7. DailyFortunes 是可选扩展，旧配置默认关闭。需要时在同一 MariaDB 服务新建独立 `dailyfortunes` 数据库和专用账号，填写 `fortunesDatabase`，设置 `fortunesEnabled: true`。禁止填称号或 Manager 数据库。游戏端的 DailyFortunes 使用 Manager 模式，共用这一权威数据库；本服务包不附其新模组 JAR。网页签文、权重、签历、单项撤回和补领均走正式鉴权接口，补领先持久化排队，玩家上线后由游戏确认发放。
+
+DailyFortunes 数据配置页提供独立完整备份、SHA-256 验证/下载和签文配置合并导入。已有签号更新，未列出的定义保留；历史签历保留抽取时的版本。后台 `backup` / `restore` 命令的范围仍是 Manager 与 MemorialTitles；DailyFortunes 必须单独备份，不能把 Manager 备份当作已包含抽签数据。关闭扩展只隐藏和停止其服务，不删除独立数据库。
 
 配置、凭据、头像和备份保存在运行目录，后续升级保留这些数据。源码构建见 [BUILDING.md](../BUILDING.md)。
 
@@ -49,6 +52,9 @@ Run with Java 17 and MariaDB, directly or through MCSManager / Docker. Connect t
 4. Run `java -jar service.jar instance manager.json minecraft`. Copy the generated `data/credentials/minecraft-bridge.json` to the game server's `config/pixelmcmanager-bridge.json`. Its `baseUrl` must be reachable by the game process; containers should use their shared network address.
 5. Run `java -jar service.jar run manager.json`, then start the game with the Manager mod installed. Sign in at `publicUrl` and bind the current modpack/world after its first connection.
 6. To enable titles, configure a title database in `titlesDatabase`, set `titlesEnabled: true`, install [MemorialTitles](https://github.com/PixelMC-Projects/MemorialTitles), and follow its Manager-mode setup. Enter `stop` to shut down the backend; use the same stop command in MCSManager.
+7. DailyFortunes is optional and disabled in existing configurations. Create a separate `dailyfortunes` database/user on the MariaDB service, configure `fortunesDatabase`, then set `fortunesEnabled: true`. Do not reuse the title or Manager database. The game mod uses Manager mode and the same authority; its new mod JAR is not included here. Web recovery queues durable delivery and waits for the game to acknowledge it.
+
+DailyFortunes has its own full backup, SHA-256 verification/download and configuration merge import. Existing IDs are updated, omitted definitions are retained, and historical draw snapshots stay fixed. Manager CLI `backup` / `restore` still covers Manager and MemorialTitles only; back up DailyFortunes separately from its data page. Disabling the optional extension does not delete its database.
 
 Keep runtime configuration, credentials, avatars and backups when upgrading. For source builds, see [BUILDING.md](../BUILDING.md).
 

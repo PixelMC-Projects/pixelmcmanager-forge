@@ -31,7 +31,7 @@ public final class ManagerRestore {
       try(Connection c=store.open()){restoreDatabase(c,ManagerBackup.TABLES,Set.of("pm_schema"),zip,"database/",fingerprints,resume);}
       for(String name:names)if(name.startsWith("files/")){Path file=data.toAbsolutePath().normalize().resolve(name.substring(6)).normalize();if(!file.startsWith(data.toAbsolutePath().normalize()))throw new IOException("备份路径越界");Files.createDirectories(file.getParent());Path temp=file.resolveSibling(file.getFileName()+".restore-tmp");try(InputStream input=zip.getInputStream(zip.getEntry(name))){Files.copy(input,temp,StandardCopyOption.REPLACE_EXISTING);}try{Files.setPosixFilePermissions(temp,java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));}catch(UnsupportedOperationException ignored){}Files.move(temp,file,StandardCopyOption.REPLACE_EXISTING);}
       // Preserve the destination network/DB configuration; restore only the backed-up owner identities.
-      ServiceConfig restored=new ServiceConfig(target.database(),target.titlesDatabase(),target.titlesEnabled(),target.bind(),target.port(),target.publicUrl(),source.owners(),target.dataDirectory());
+      ServiceConfig restored=target.withOwners(source.owners());
       ServiceConfig.atomic(data.resolve("restored-owners.json"),JSON.toJson(source.owners()));return restored;
     }
   }

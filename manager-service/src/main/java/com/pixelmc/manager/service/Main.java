@@ -9,11 +9,11 @@ import java.util.concurrent.*;
 
 public final class Main {
   public static void main(String[] args)throws Exception{
-    if(args.length<2){System.out.println("PixelMC Manager 0.5.0 · Java17\n用法: java -jar service.jar <init-config|init-admin|instance|run|backup|restore|migrate-web> <manager.json> [参数]");return;}
+    if(args.length<2){System.out.println("PixelMC Manager 0.5.2 · Java17\n用法: java -jar service.jar <init-config|init-admin|instance|run|backup|restore|migrate-web> <manager.json> [参数]");return;}
     String action=args[0];Path file=Path.of(args[1]).toAbsolutePath().normalize();
     if(action.equals("init-config")){
       if(Files.exists(file))throw new IllegalStateException("配置已存在，未覆盖");
-      ServiceConfig config=new ServiceConfig(new Database.Config("jdbc:mariadb://127.0.0.1:3306/pixelmc_manager","pixelmc_manager","CHANGE_ME"),new Database.Config("jdbc:mariadb://127.0.0.1:3306/memorialtitles","memorialtitles","CHANGE_ME"),false,"127.0.0.1",18800,"http://127.0.0.1:18800",List.of(),"data");
+      ServiceConfig config=new ServiceConfig(new Database.Config("jdbc:mariadb://127.0.0.1:3306/pixelmc_manager","pixelmc_manager","CHANGE_ME"),new Database.Config("jdbc:mariadb://127.0.0.1:3306/memorialtitles","memorialtitles","CHANGE_ME"),false,"127.0.0.1",18800,"http://127.0.0.1:18800",List.of(),"data",new Database.Config("jdbc:mariadb://127.0.0.1:3306/dailyfortunes","dailyfortunes","CHANGE_ME"),false);
       ServiceConfig.atomic(file,Wire.JSON.toJson(config));System.out.println("已创建配置："+file);return;
     }
     ServiceConfig config=ServiceConfig.load(file);Path data=config.data(file);Files.createDirectories(data);
@@ -22,7 +22,7 @@ public final class Main {
       String password=Files.readString(Path.of(args[4])).stripTrailing();UUID owner=UUID.fromString(args[3]);
       AccountStore accounts=new AccountStore(data.resolve("titles"));accounts.create(args[2],owner,password);
       Set<UUID> owners=new LinkedHashSet<>(config.owners());owners.add(owner);
-      ServiceConfig.atomic(file,Wire.JSON.toJson(new ServiceConfig(config.database(),config.titlesDatabase(),config.titlesEnabled(),config.bind(),config.port(),config.publicUrl(),List.copyOf(owners),config.dataDirectory())));
+      ServiceConfig.atomic(file,Wire.JSON.toJson(config.withOwners(List.copyOf(owners))));
       System.out.println("管理员账号已创建（未登记游戏玩家）；密码未输出。");return;
     }
     if(action.equals("archive")){
@@ -31,7 +31,7 @@ public final class Main {
     if(action.equals("migrate-web")){
       if(args.length!=4)throw new IllegalArgumentException("migrate-web 配置文件 旧称号配置目录 网页用户名");Path legacy=Path.of(args[2]).toAbsolutePath().normalize();AccountStore accounts=new AccountStore(legacy);AccountStore.Account account=accounts.get(AccountStore.normalize(args[3]));if(account==null)throw new IllegalArgumentException("旧账号不存在");Path target=data.resolve("titles/web-accounts.json");if(Files.exists(target))throw new IllegalStateException("目标已有账号文件，未覆盖");ServiceConfig.atomic(target,Files.readString(legacy.resolve("web-accounts.json")));
       Path avatars=legacy.resolve("avatars");if(Files.isDirectory(avatars))try(var files=Files.walk(avatars)){for(Path source:files.filter(p->Files.isRegularFile(p,LinkOption.NOFOLLOW_LINKS)).toList()){Path destination=data.resolve("titles/avatars").resolve(avatars.relativize(source));Files.createDirectories(destination.getParent());Files.copy(source,destination);}}
-      Set<UUID> owners=new LinkedHashSet<>(config.owners());owners.add(account.player());ServiceConfig.atomic(file,Wire.JSON.toJson(new ServiceConfig(config.database(),config.titlesDatabase(),config.titlesEnabled(),config.bind(),config.port(),config.publicUrl(),List.copyOf(owners),config.dataDirectory())));System.out.println("旧网页账号哈希和头像缓存已复制，指定账号已授权；未修改原目录或重置密码。");return;
+      Set<UUID> owners=new LinkedHashSet<>(config.owners());owners.add(account.player());ServiceConfig.atomic(file,Wire.JSON.toJson(config.withOwners(List.copyOf(owners))));System.out.println("旧网页账号哈希和头像缓存已复制，指定账号已授权；未修改原目录或重置密码。");return;
     }
     if(action.equals("instance")){
       if(args.length!=3)throw new IllegalArgumentException("instance 配置文件 实例ID");
