@@ -144,6 +144,10 @@ class OffsiteChecks(unittest.TestCase):
             update_offsite.patch(self.original.replace(
                 '                   "--databases", *databases]', 'changed-known-anchor'))
 
+    def test_service_only_hotfix_path_is_accepted(self):
+        hotfix = '/data/releases/0.6.0.web.1/pixelmc-manager-service-0.6.0.web.1.jar'
+        self.assertEqual(hotfix, self.jar(['/usr/bin/java', '-jar', hotfix, 'run', 'manager.json']))
+
     def test_discovers_all_four_databases_using_protected_stdin_defaults(self):
         self.assertEqual(DATABASES, self.discover())
         command, kwargs = self.calls[-1]

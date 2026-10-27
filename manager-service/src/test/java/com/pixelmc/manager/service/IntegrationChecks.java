@@ -104,7 +104,12 @@ public final class IntegrationChecks {
     var ingest=HttpRequest.newBuilder(URI.create(url+"/bridge/snapshot")).header("Content-Type","application/json").header("Authorization","Bearer "+token).header("X-PixelMC-Instance","local-test").POST(HttpRequest.BodyPublishers.ofString(JSON.toJson(packet(archive,2)))).build();
     check(obj(client.send(ingest,HttpResponse.BodyHandlers.ofString()).body()).get("accepted").getAsBoolean(),"fortune authority receives real bridge admission");
     check(!bridge(client,url,rpc).has("error"),"admitted fortune player registered");rpc.addProperty("op","draw");rpc.getAsJsonObject("data").getAsJsonArray("args").remove(1);
-    JsonObject drawn=bridge(client,url,rpc);check(!drawn.has("error"),"fortune draw uses authoritative bridge");check(bridge(client,url,rpc).has("error"),"second daily draw rejected");
+    JsonObject drawn=bridge(client,url,rpc);check(!drawn.has("error"),"fortune draw uses authoritative bridge");
+    check(drawn.getAsJsonObject("record").equals(drawn.getAsJsonObject("result").getAsJsonObject("record")),"0.2.0 game receives the same receipt at the root and in the envelope");
+    check(cn.pixelmc.dailyfortunes.service.FortuneRpcResponse.decode(JSON.toJson(drawn)).getAsJsonObject("record").equals(drawn.getAsJsonObject("record")),"updated game decodes the actual HTTP draw response");
+    JsonObject duplicate=bridge(client,url,rpc);check(duplicate.has("error"),"second daily draw rejected");
+    denied(()->cn.pixelmc.dailyfortunes.service.FortuneRpcResponse.decode(JSON.toJson(duplicate)),"game rejects business errors before receipt delivery");
+    rpc.addProperty("op","pending");JsonObject pending=bridge(client,url,rpc);check(pending.getAsJsonArray("records").size()==1&&pending.getAsJsonArray("records").equals(pending.getAsJsonObject("result").getAsJsonArray("records")),"undelivered receipt survives the bridge and is available to the running 0.2.0 game");
     JsonObject rows=obj(send(client,url,"/api/dailyfortunes/players?presence=online&sort=total&direction=desc",null,null,null).body());check(rows.get("total").getAsInt()==1&&rows.getAsJsonObject("presenceCounts").get("online").getAsInt()==1,"fortune presence counts from admitted humans");
     JsonObject record=drawn.getAsJsonObject("result").getAsJsonObject("record");String date=record.get("date").getAsString();
     JsonObject calendar=obj(send(client,url,"/api/dailyfortunes/calendar?player="+player+"&month="+date.substring(0,7),null,null,null).body());check(calendar.getAsJsonArray("records").size()==1&&!calendar.getAsJsonArray("records").get(0).getAsJsonObject().has("token"),"web calendar omits receipt tokens");

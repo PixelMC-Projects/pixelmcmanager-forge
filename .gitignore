@@ -78,5 +78,6 @@ tools/*
 !tools/test_restart_host.py
 docs/*
 !docs/manual-test.md
+!docs/fortune-rpc-compatibility.md
 manager-service/deploy/compose.yaml
 manager-service/deploy/mcsm-settings.json

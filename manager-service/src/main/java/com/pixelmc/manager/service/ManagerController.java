@@ -7,6 +7,7 @@ import cn.pixelmc.memorialtitles.web.*;
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpExchange;
 import cn.pixelmc.dailyfortunes.service.FortuneBackend;
+import cn.pixelmc.dailyfortunes.service.FortuneRpcResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -93,7 +94,7 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   private JsonObject fortuneRpc(String instance,JsonObject b)throws Exception{
     if(fortunes==null)throw new IllegalArgumentException("DailyFortunes 扩展未启用");
     Presence report=presence.get(instance);Set<UUID> admitted=report!=null&&report.until()>System.currentTimeMillis()?report.players():Set.of();
-    JsonObject response=new JsonObject();try{response.add("result",fortunes.rpc(text(b,"op",64),object(b,"data"),text(b,"playerProof",36),admitted));}
+    JsonObject response=new JsonObject();try{response=FortuneRpcResponse.success(fortunes.rpc(text(b,"op",64),object(b,"data"),text(b,"playerProof",36),admitted));}
     catch(Exception error){response.addProperty("error",fortuneError(error));}response.addProperty("healthy",bool(fortunes.status(),"database",false));return response;
   }
   private static String fortuneError(Exception error){return error instanceof IllegalArgumentException||error instanceof IllegalStateException||error instanceof SecurityException?Objects.toString(error.getMessage(),"抽签操作未完成"):"抽签数据暂不可用，请稍后重试";}

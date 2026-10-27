@@ -48,7 +48,8 @@ def patch(source):
     source = replace_once(source,
         '        "/data/deployment/manager-ui-0.5.2-20261026/pixelmc-manager-service-0.5.2-web.1.jar",',
         '        "/data/deployment/manager-ui-0.5.2-20261026/pixelmc-manager-service-0.5.2-web.1.jar",\n'
-        '        "/data/releases/0.6.0/pixelmc-manager-service-0.6.0.jar",')
+        '        "/data/releases/0.6.0/pixelmc-manager-service-0.6.0.jar",\n'
+        '        "/data/releases/0.6.0.web.1/pixelmc-manager-service-0.6.0.web.1.jar",')
     source = replace_once(source,
         '                   "--databases", *databases]',
         '                   *["--ignore-table=" + schema + "." + table\n'

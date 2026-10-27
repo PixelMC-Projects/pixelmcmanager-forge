@@ -32,3 +32,7 @@ On Windows use `gradlew.bat`. Mod output: `build/libs/`. Web service output: `bu
 Manager Service 0.6.0 requires MemorialTitles 0.5.0-dev and DailyFortunes 0.2.0. Use the exact dependency commits listed in the release service package for reproducible builds. Both Fabric versions reuse the same Java17 service and supervisor ZIP; Fabric game extensions still need loader-compatible builds.
 
 Manager Service 0.6.0 需要 MemorialTitles 0.5.0-dev 与 DailyFortunes 0.2.0 的共享源码。复现发行版时使用服务包内记录的精确提交。两个 Fabric 分支复用同一份 Java17 服务与托管包；游戏扩展仍需对应加载器版本。
+
+Service-only hotfix 0.6.0.web.1 uses DailyFortunes 0.2.1 shared source. Build with `./gradlew managerServiceJar -PmanagerServiceVersion=0.6.0.web.1`. The game mod and bridge protocol stay at 0.6.0; both Fabric versions reuse this same service package without a game-code port.
+
+仅网页修复版 0.6.0.web.1 使用 DailyFortunes 0.2.1 的共享源码。构建命令如上；游戏 Manager 和桥接协议仍为 0.6.0。两个 Fabric 版本共用此网页包，不需要改动游戏代码。

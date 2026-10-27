@@ -183,13 +183,14 @@ tasks.register('managerServiceJar', Jar) {
         if (!titlesSource.isDirectory()) throw new GradleException(
                 'Clone MemorialTitles alongside this repository, or set -PmemorialTitlesDir=/path/to/MemorialTitles; see BUILDING.md')
     }
-    archiveFileName = "pixelmc-manager-service-${project.version}.jar"
+    def serviceVersion = providers.gradleProperty('managerServiceVersion').getOrElse(project.version.toString())
+    archiveFileName = "pixelmc-manager-service-${serviceVersion}.jar"
     destinationDirectory = layout.buildDirectory.dir('manager-service')
     from sourceSets.managerService.output
     from { sourceSets.managerService.compileClasspath.collect { zipTree(it) } }
     exclude 'META-INF/*.SF','META-INF/*.RSA','META-INF/*.DSA','module-info.class','META-INF/versions/**'
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    manifest { attributes(['Main-Class':'com.pixelmc.manager.service.Main','Implementation-Version':project.version]) }
+    manifest { attributes(['Main-Class':'com.pixelmc.manager.service.Main','Implementation-Version':serviceVersion]) }
 }
 tasks.register('managerIntegrationTest', JavaExec) {
     dependsOn 'managerChecksClasses'
