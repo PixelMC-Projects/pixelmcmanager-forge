@@ -303,6 +303,9 @@ def activate_changes():
         if any(prefix in p.name.lower() for prefix in ('pixelmcmanager', 'memorialtitles', 'dailyfortunes', 'framedblocks'))}
     if existing != bundle['expectedActiveMods']:
         raise RuntimeError('Active mod versions changed since staging; inspect before activation')
+    for name in bundle['mods']:
+        if name not in bundle['expectedActiveMods'] and (GAME / 'mods' / name).exists():
+            raise RuntimeError('A newly staged mod already exists; refusing to overwrite it')
     originals = json.loads((BACKUP / 'mcsm-configs.json').read_text())
     game = copy.deepcopy(originals[GI]); web = copy.deepcopy(originals[WI])
     args = shlex.split(game['startCommand'])
