@@ -184,7 +184,8 @@ class DeploymentChecks(unittest.TestCase):
                     return [['30']]
                 if statement.startswith('SELECT COUNT(*) FROM pixelmc_platform.pm_profiles'):
                     return [['2']]
-                if 'UNION SELECT uuid FROM' in statement or statement == 'SELECT uuid FROM pixelmc_platform.pm_profiles;':
+                if 'UNION SELECT uuid FROM' in statement or (statement.startswith('SELECT uuid FROM pixelmc_platform.pm_profiles ')
+                        and 'pm_profile_exclusions' in statement):
                     return [['00000000-0000-0000-0000-000000000001'], ['00000000-0000-0000-0000-000000000002']]
                 raise AssertionError('Unexpected SQL read in local deployment rehearsal')
 

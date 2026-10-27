@@ -264,10 +264,12 @@ def migrate():
     if result.returncode:
         raise RuntimeError('Platform init failed; original databases and config are intact')
     migrator.verify(after_platform_init=True)
-    expected_roster = {row[0] for row in sql.rows("SELECT uuid FROM pixelmc_manager.pm_players WHERE "
-        "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload,'$.fake')),'false') NOT IN ('true','1') "
-        "UNION SELECT uuid FROM memorialtitles.mt_players UNION SELECT uuid FROM dailyfortunes.df_players;")}
-    actual_roster = {row[0] for row in sql.rows('SELECT uuid FROM pixelmc_platform.pm_profiles;')}
+    expected_roster = {row[0] for row in sql.rows("SELECT uuid FROM (SELECT uuid FROM pixelmc_manager.pm_players "
+        "UNION SELECT uuid FROM memorialtitles.mt_players UNION SELECT uuid FROM dailyfortunes.df_players) roster "
+        "WHERE uuid NOT IN (SELECT uuid FROM pixelmc_manager.pm_players WHERE "
+        "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload,'$.fake')),'false') IN ('true','1')); ")}
+    actual_roster = {row[0] for row in sql.rows('SELECT uuid FROM pixelmc_platform.pm_profiles '
+        'WHERE uuid NOT IN (SELECT uuid FROM pixelmc_platform.pm_profile_exclusions);')}
     if expected_roster != actual_roster:
         raise RuntimeError('Global identity union does not match the original real-player stores')
     # Account hashes/bridge secrets/avatars must remain byte-identical after module bootstrap.
@@ -280,7 +282,7 @@ def migrate():
         raise RuntimeError('Platform account hashes differ from original accounts')
     # The public config lives at WEB/manager.json, so its relative dataDirectory resolves correctly there.
     atomic_json(WS / 'migration-complete.json', {'phase': 'verified', 'at': int(time.time()), 'target': TARGET,
-        'globalProfiles': int(sql.rows('SELECT COUNT(*) FROM pixelmc_platform.pm_profiles;')[0][0])})
+        'globalProfiles': len(actual_roster)})
     print('Empty-target copy and platform initialization verified; originals retained, no service started.')
 
 
