@@ -31,3 +31,13 @@ Actual activation saves old game files under each stage's `before-activation/`; 
 ## Immutable web-only correction
 
 The future web payload now uses `pixelmc-manager-service-0.5.2-web.1.jar` (SHA-256 `d13c8c8e4817f9b55e56f53eb5070eee63b1d71a6a28a26c4e8399a584b1d1e6`). It fixes DailyFortunes avatars to 32px in lists and 40px in profiles. All 619 Java classes and every non-web resource are byte-identical to the original service above; only web resources and manifest version differ. The immutable original v0.5.2 release is retained. `update-web-patch.py` updates only the unactivated web payload/launcher/checksums after checking that the future worker has never run. The prior state is retained in web stage `before-web-patch/`. Final packaged-service browser checks measured exactly 32x32 and 40x40 in dark/light themes against the isolated real SQL backend.
+
+## 2026-10-27 coordinator repair and live web preparation
+
+The first real game restart deferred the upgrade before requesting any web action: Docker rejected `docker top -eo comm,args` because PID was absent. The helper now requests `pid,comm,args`, parses three columns and records a controlled failure reason. MCSM open/restart requests now use the actual batch contract `instanceUuids: [WEB_ID]`; detail lookups continue to use the singular key.
+
+The local coordinator fixtures now enforce the Docker PID column and MCSM batch payload, alongside the running-JVM safety guard, deduplication, timeout and failure diagnostics. The Gradle build passed. On the live host, the fixed process query succeeded and positively detected the running Forge JVM without changing it.
+
+A separate normal MCSM web restart completed after its native pre-upgrade backup. The existing DailyFortunes web hook merged its independent database configuration and initialized the default definitions. Authenticated Manager/Titles and DailyFortunes capability checks passed. The game and database processes stayed unchanged during this web repair. Game JAR activation remained pending and was rearmed through the native 15-second empty-server scheduler, without disconnecting online players. These are later deployment facts, not a change to the immutable v0.5.2 or v0.5.2-web.1 release assets.
+
+Protected diagnostics and the original coordinator are retained in the DailyFortunes stage's `coordinator-fix-20261027/` directory. The detailed server customization record remains local and is not included in this repository.
