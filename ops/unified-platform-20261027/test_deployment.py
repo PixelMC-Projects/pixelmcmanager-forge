@@ -371,5 +371,21 @@ class DeploymentChecks(unittest.TestCase):
         self.assert_no_service_control()
 
 
+class ContainerInspectionChecks(unittest.TestCase):
+    def test_mcsm_removed_container_counts_as_stopped(self):
+        result = type('Result', (), {'returncode': 1, 'stdout': b'[]', 'stderr': b'Error: No such object: fixture-game'})()
+        with patch.object(deploy.subprocess, 'run', return_value=result):
+            state = deploy.inspect_container('fixture-game')['State']
+        self.assertFalse(state['Running'])
+        self.assertEqual(0, state['Pid'])
+        self.assertEqual('absent', state['Status'])
+
+    def test_docker_failure_is_not_mistaken_for_a_stopped_container(self):
+        result = type('Result', (), {'returncode': 1, 'stdout': b'', 'stderr': b'Cannot connect to the Docker daemon'})()
+        with patch.object(deploy.subprocess, 'run', return_value=result):
+            with self.assertRaisesRegex(RuntimeError, 'Cannot verify Docker state'):
+                deploy.inspect_container('fixture-game')
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

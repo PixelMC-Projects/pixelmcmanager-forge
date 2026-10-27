@@ -62,7 +62,14 @@ def sha(path):
 
 
 def inspect_container(name):
-    return json.loads(subprocess.check_output(['docker', 'inspect', name]))[0]
+    result = subprocess.run(['docker', 'inspect', name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+    if result.returncode:
+        message = result.stderr.decode('utf-8', errors='replace').lower()
+        if result.stdout.strip() in (b'', b'[]') and ('no such object:' in message or 'no such container:' in message):
+            # MCSManager removes stopped Docker containers; absence is a stopped state.
+            return {'State': {'Running': False, 'Restarting': False, 'Pid': 0, 'Status': 'absent', 'StartedAt': ''}}
+        raise RuntimeError('Cannot verify Docker state; maintenance phase refused')
+    return json.loads(result.stdout)[0]
 
 
 def tree_hashes(directory):
