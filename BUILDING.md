@@ -29,4 +29,6 @@ On Windows use `gradlew.bat`. Mod output: `build/libs/`. Web service output: `bu
 
 ## Shared backend source versions
 
-Manager service 0.5.2 is built from [Forge v0.5.2](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/v0.5.2), [MemorialTitles 0bc729f](https://github.com/PixelMC-Projects/MemorialTitles/tree/0bc729f3030c5d0a0df6c8442a561c3a9cc8685a), and [DailyFortunes 9e5b6e6](https://github.com/PixelMC-Projects/DailyFortunes/tree/9e5b6e6c14fa4cede433eadc126b3abe172333f0). Forge and Fabric releases reuse the exact same service/supervisor ZIP bytes. The new DailyFortunes game-mod JAR is not included in this release.
+Manager Service 0.6.0 requires MemorialTitles 0.5.0-dev and DailyFortunes 0.2.0. Use the exact dependency commits listed in the release service package for reproducible builds. Both Fabric versions reuse the same Java17 service and supervisor ZIP; Fabric game extensions still need loader-compatible builds.
+
+Manager Service 0.6.0 需要 MemorialTitles 0.5.0-dev 与 DailyFortunes 0.2.0 的共享源码。复现发行版时使用服务包内记录的精确提交。两个 Fabric 分支复用同一份 Java17 服务与托管包；游戏扩展仍需对应加载器版本。

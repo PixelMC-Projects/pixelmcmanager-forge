@@ -11,6 +11,8 @@ import java.util.*;
 /** Persistent business data and expiring telemetry are deliberately separate tables. */
 public final class ManagerStore {
   private final Database db;
+  private volatile boolean platformEnabled;
+  void enableProfiles(){platformEnabled=true;}
   public static final long HOUR=3600000L;
   public ManagerStore(Database.Config config){db=new Database(config);}
   public Connection open()throws SQLException{return db.open();}
@@ -103,21 +105,23 @@ public final class ManagerStore {
     long seq=number(b,"seq",0,1,Long.MAX_VALUE),last=i.get("last_seq").getAsLong();if(seq<=last){JsonObject result=new JsonObject();result.addProperty("ack",last);result.addProperty("accepted",false);result.add("commands",JSON.toJsonTree(commands(c,instance,run)));return result;}
     if(i.get("stopped").getAsBoolean())throw new IllegalStateException("本次运行已最终结算");
     long now=System.currentTimeMillis(),at=number(b,"at",now,i.get("started_at").getAsLong()-1000,now+10000);
-    for(JsonElement raw:array(b,"stats",10000))if(!bool(raw.getAsJsonObject(),"fake",false))upsertPlayer(c,archive,raw.getAsJsonObject(),false,false);
+    Set<String> currentFakes=new HashSet<>();if(platformEnabled)for(JsonElement raw:array(b,"players",2000)){JsonObject player=raw.getAsJsonObject();if(bool(player,"fake",false)){String fake=uuid(text(player,"id",36));currentFakes.add(fake);PlatformStore.excludeFake(c,fake);}}
+    if(platformEnabled)for(JsonElement raw:array(b,"logins",512)){JsonObject login=raw.getAsJsonObject();if(!bool(login,"fake",false)&&!currentFakes.contains(text(login,"uuid",36)))PlatformStore.admission(c,instance,archive,login);}
+    for(JsonElement raw:array(b,"stats",10000))if(!bool(raw.getAsJsonObject(),"fake",false)&&!currentFakes.contains(text(raw.getAsJsonObject(),"id",36)))upsertPlayer(c,archive,raw.getAsJsonObject(),false,false);
     update(c,"UPDATE pm_players SET online=FALSE WHERE archive_id=? AND online=TRUE",archive);
     for(JsonElement raw:array(b,"players",2000)){JsonObject p=raw.getAsJsonObject();if(bool(p,"fake",false))continue;upsertPlayer(c,archive,p,true,true);}
     // The authenticated bridge journals only admitted logins. Its IO worker can drain
     // that journal before the game thread publishes the next player checkpoint.
     // Preserve the event without creating a profile or blocking the entire stream;
     // only stats/players snapshots register the profile, and event_id makes retries safe.
-    for(JsonElement raw:array(b,"logins",512)){JsonObject p=raw.getAsJsonObject();String player=uuid(text(p,"uuid",36));String event=text(p,"id",128);if(!event.matches("[A-Za-z0-9_.:-]{1,128}"))throw new IllegalArgumentException("登录事件标识无效");update(c,"INSERT IGNORE INTO pm_logins(event_id,archive_id,uuid,at_ms,session_id,name) VALUES(?,?,?,?,?,?)",event,archive,player,number(p,"at",0,1,now+10000),text(p,"sessionId",128),text(p,"name",64));}
+    for(JsonElement raw:array(b,"logins",512)){JsonObject p=raw.getAsJsonObject();String player=uuid(text(p,"uuid",36));if(currentFakes.contains(player))continue;if(platformEnabled&&!PlatformStore.acceptLogin(c,player,number(p,"at",0,1,now+10000)))continue;String event=text(p,"id",128);if(!event.matches("[A-Za-z0-9_.:-]{1,128}"))throw new IllegalArgumentException("登录事件标识无效");update(c,"INSERT IGNORE INTO pm_logins(event_id,archive_id,uuid,at_ms,session_id,name) VALUES(?,?,?,?,?,?)",event,archive,player,number(p,"at",0,1,now+10000),text(p,"sessionId",128),text(p,"name",64));}
     JsonArray metrics=array(b,"metrics",512);if(metrics.isEmpty()&&b.has("metric")){JsonObject m=object(b,"metric").deepCopy();m.addProperty("at",at);metrics.add(m);}
     try(PreparedStatement p=c.prepareStatement("INSERT IGNORE INTO pm_metrics(instance_id,run_id,at_ms,tps,mspt,heap,payload) VALUES(?,?,?,?,?,?,?)")){
       for(JsonElement raw:metrics){JsonObject m=raw.getAsJsonObject();long when=number(m,"at",at,1,now+10000);if(when<now-12*HOUR)continue;p.setString(1,instance);p.setString(2,run);p.setLong(3,when);p.setDouble(4,finite(m,"tps",0,20));p.setDouble(5,finite(m,"mspt",0,3600000));p.setDouble(6,finite(m,"heap",0,1000000));p.setString(7,JSON.toJson(m));p.addBatch();}p.executeBatch();
     }
     for(JsonElement raw:array(b,"longTicks",512)){JsonObject p=raw.getAsJsonObject();long when=number(p,"at",0,1,now+10000);double duration=finite(p,"duration",50,3600000);if(duration<=50||when<now-24*HOUR)continue;long tick=number(p,"tickIndex",0,0,Long.MAX_VALUE);int inserted=update(c,"INSERT IGNORE INTO pm_long_ticks(instance_id,run_id,tick_index,at_ms,duration) VALUES(?,?,?,?,?)",instance,run,tick,when,duration);if(inserted>0)groupTick(c,instance,run,tick,when,duration);}
     for(JsonElement raw:array(b,"acks",32)){JsonObject a=raw.getAsJsonObject();update(c,"UPDATE pm_commands SET state=?,result=? WHERE id=? AND instance_id=? AND run_id=? AND state='pending'",bool(a,"ok",false)?"done":"failed",text(a,"result",4096),uuid(text(a,"id",36)),instance,run);}
-    JsonObject snapshot=object(b,"snapshot");snapshot.addProperty("at",at);snapshot.addProperty("runId",run);snapshot.addProperty("startedAt",i.get("started_at").getAsLong());
+    JsonObject snapshot=object(b,"snapshot");if(platformEnabled)snapshot.add("players",array(b,"players",2000).deepCopy());snapshot.addProperty("at",at);snapshot.addProperty("runId",run);snapshot.addProperty("startedAt",i.get("started_at").getAsLong());
     update(c,"UPDATE pm_instances SET snapshot=?,last_seen=?,last_seq=?,stopped=? WHERE id=?",JSON.toJson(snapshot),now,seq,bool(b,"stopped",false),instance);
     JsonObject summary=new JsonObject();if(snapshot.has("worlds")){JsonArray worlds=snapshot.getAsJsonArray("worlds").deepCopy();for(JsonElement w:worlds)w.getAsJsonObject().remove("performance");summary.add("worlds",worlds);}if(snapshot.has("saveBytes"))summary.add("saveBytes",snapshot.get("saveBytes"));
     update(c,"UPDATE pm_archives SET summary=? WHERE id=?",JSON.toJson(summary),archive);
@@ -125,9 +129,16 @@ public final class ManagerStore {
     JsonObject result=new JsonObject();result.addProperty("ack",seq);result.addProperty("accepted",true);result.add("commands",JSON.toJsonTree(commands(c,instance,run)));return result;
   });}
   private static double finite(JsonObject o,String key,double min,double max){double d=o.get(key).getAsDouble();if(!Double.isFinite(d)||d<min||d>max)throw new IllegalArgumentException(key+"超出范围");return d;}
-  private static void upsertPlayer(Connection c,String archive,JsonObject p,boolean online,boolean live)throws Exception{
+  private void upsertPlayer(Connection c,String archive,JsonObject p,boolean online,boolean live)throws Exception{
+    if(bool(p,"fake",false))return;
     String player=uuid(text(p,"id",36)),name=text(p,"name",64);if(name.isBlank())throw new IllegalArgumentException("玩家名称为空");
     long total=number(p,"totalOnlineMillis",0,0,Long.MAX_VALUE),joins=number(p,"joinCount",0,0,Long.MAX_VALUE),first=number(p,"firstJoinEpochMillis",0,0,Long.MAX_VALUE),last=number(p,"lastJoinEpochMillis",0,0,Long.MAX_VALUE);
+    if(platformEnabled){
+      if(PlatformStore.deleted(c,player)||PlatformStore.excluded(c,player))return;
+      var resets=rows(c,"SELECT total_base,join_base FROM pm_player_resets WHERE archive_id=? AND uuid=?",archive,player);if(!resets.isEmpty()){total=Math.max(0,total-resets.get(0).get("total_base").getAsLong());joins=Math.max(0,joins-resets.get(0).get("join_base").getAsLong());first=last;}
+      p.addProperty("totalOnlineMillis",total);p.addProperty("joinCount",joins);p.addProperty("firstJoinEpochMillis",first);
+      PlatformStore.identity(c,player,name,first,live&&online?System.currentTimeMillis():last);
+    }
     Collator order=Collator.getInstance(Locale.CHINA);order.setStrength(Collator.PRIMARY);String sort=HexFormat.of().formatHex(order.getCollationKey(name.toLowerCase(Locale.ROOT)).toByteArray());
     // Absolute cumulative counters make reconnect/backfill idempotent. Never sum repeated snapshots.
     update(c,"INSERT INTO pm_players(archive_id,uuid,name,name_sort,join_count,first_join,last_join,total_ms,online,payload) VALUES(?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE counter_warning=(join_count>VALUES(join_count) OR total_ms>VALUES(total_ms)+1000),name=VALUES(name),name_sort=VALUES(name_sort),join_count=GREATEST(join_count,VALUES(join_count)),first_join=IF(first_join=0,VALUES(first_join),IF(VALUES(first_join)=0,first_join,LEAST(first_join,VALUES(first_join)))),last_join=GREATEST(last_join,VALUES(last_join)),total_ms=GREATEST(total_ms,VALUES(total_ms)),online=VALUES(online),payload=IF(?,VALUES(payload),payload)",archive,player,name,sort,joins,first,last,total,online,JSON.toJson(p),live);
@@ -142,18 +153,18 @@ public final class ManagerStore {
     out.addProperty("instanceId",instance);out.addProperty("archiveId",selected);out.addProperty("activeArchiveId",active);out.addProperty("historical",historical||(!pack.entrySet().isEmpty()&&!pack.get("status").getAsString().equals("active")));
     out.addProperty("connected",fresh(i,now));out.addProperty("stopped",i.get("stopped").getAsBoolean());out.addProperty("receivedAt",i.get("last_seen").getAsLong());out.addProperty("serverTime",now);out.add("pack",pack);
     if(!historical){out.add("runId",i.get("run_id"));out.add("startedAt",i.get("started_at"));}
-    if(!selected.isBlank()){out.add("totals",rows(c,"SELECT COUNT(*) players,COALESCE(SUM(total_ms),0) totalOnlineMillis,COALESCE(SUM(join_count),0) joinCount,COALESCE(SUM(counter_warning),0) counterWarnings FROM pm_players WHERE archive_id=?",selected).get(0));}
+    if(!selected.isBlank()){out.add("totals",rows(c,"SELECT COUNT(*) players,COALESCE(SUM(total_ms),0) totalOnlineMillis,COALESCE(SUM(join_count),0) joinCount,COALESCE(SUM(counter_warning),0) counterWarnings FROM pm_players WHERE archive_id=?"+(platformEnabled?" AND uuid IN(SELECT uuid FROM pm_profiles WHERE uuid NOT IN(SELECT uuid FROM pm_profile_exclusions))":""),selected).get(0));}
     return out;
   }}
   public static void scrubPerformance(JsonObject snapshot){for(String key:List.of("metric","collections","nonHeapMb","heapCommitted","maxHeap","gcNames"))snapshot.remove(key);if(snapshot.has("worlds"))for(JsonElement world:snapshot.getAsJsonArray("worlds"))world.getAsJsonObject().remove("performance");}
   public JsonObject players(String archive,Map<String,String> q,boolean connected)throws Exception{try(Connection c=open()){
-    uuid(archive);int page=integer(q,"page",0,0,100000),size=integer(q,"size",50,1,100);String key=q.getOrDefault("sort","status"),direction=q.getOrDefault("direction","asc").equals("desc")?"DESC":"ASC";
+    uuid(archive);String source="pm_players";if(platformEnabled&&!q.getOrDefault("historical","false").equals("true"))source="(SELECT '"+uuid(archive)+"' archive_id,g.uuid,g.name,COALESCE(p.name_sort,HEX(LOWER(g.name))) name_sort,COALESCE(p.join_count,0) join_count,COALESCE(p.first_join,g.first_join) first_join,COALESCE(p.last_join,0) last_join,COALESCE(p.total_ms,0) total_ms,COALESCE(p.online,FALSE) online,COALESCE(p.counter_warning,FALSE) counter_warning,COALESCE(p.payload,'{}') payload FROM pm_profiles g LEFT JOIN pm_players p ON p.uuid=g.uuid AND p.archive_id='"+archive+"' WHERE g.uuid NOT IN(SELECT uuid FROM pm_profile_exclusions)) roster";int page=integer(q,"page",0,0,100000),size=integer(q,"size",50,1,100);String key=q.getOrDefault("sort","status"),direction=q.getOrDefault("direction","asc").equals("desc")?"DESC":"ASC";
     String search=q.getOrDefault("q","");if(search.length()>128)throw new IllegalArgumentException("搜索过长");String filter=q.getOrDefault("online","");
-    String where="archive_id=? AND (name LIKE ? OR uuid LIKE ?)"+(filter.equals("true")?(connected?" AND online=TRUE":" AND 1=0"):"");String pattern="%"+search.replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";
+    String where="archive_id=? AND (name LIKE ? OR uuid LIKE ?)"+(platformEnabled?" AND uuid IN(SELECT uuid FROM pm_profiles WHERE uuid NOT IN(SELECT uuid FROM pm_profile_exclusions))":"")+(filter.equals("true")?(connected?" AND online=TRUE":" AND 1=0"):"");String pattern="%"+search.replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";
     String sort=switch(key){case "name"->"name_sort "+direction;case "joinCount"->"join_count "+direction;case "totalOnlineMillis"->"total_ms "+direction;case "status"->"online "+(direction.equals("ASC")?"DESC":"ASC")+",name_sort ASC";case "ping"->"(JSON_EXTRACT(payload,'$.ping') IS NULL),CAST(JSON_UNQUOTE(JSON_EXTRACT(payload,'$.ping')) AS SIGNED) "+direction;case "session"->"(online=FALSE),CAST(JSON_UNQUOTE(JSON_EXTRACT(payload,'$.sessionMillis')) AS UNSIGNED) "+direction;case "world"->"(online=FALSE),CASE JSON_UNQUOTE(JSON_EXTRACT(payload,'$.world')) WHEN 'minecraft:overworld' THEN 0 WHEN 'minecraft:the_nether' THEN 1 WHEN 'minecraft:the_end' THEN 2 ELSE 3 END "+direction+",JSON_UNQUOTE(JSON_EXTRACT(payload,'$.world')) "+direction;default->throw new IllegalArgumentException("排序字段无效");};
-    var selected=rows(c,"SELECT * FROM pm_players WHERE "+where+" ORDER BY "+sort+",name_sort ASC,uuid ASC LIMIT ? OFFSET ?",archive,pattern,pattern,size,page*size);
+    var selected=rows(c,"SELECT * FROM "+source+" WHERE "+where+" ORDER BY "+sort+",name_sort ASC,uuid ASC LIMIT ? OFFSET ?",archive,pattern,pattern,size,page*size);
     List<JsonObject> result=new ArrayList<>();for(JsonObject r:selected){JsonObject p=JsonParser.parseString(r.get("payload").getAsString()).getAsJsonObject();p.addProperty("id",r.get("uuid").getAsString());p.addProperty("name",r.get("name").getAsString());p.addProperty("joinCount",r.get("join_count").getAsLong());p.addProperty("totalOnlineMillis",r.get("total_ms").getAsLong());p.addProperty("firstJoinEpochMillis",r.get("first_join").getAsLong());p.addProperty("lastJoinEpochMillis",r.get("last_join").getAsLong());p.addProperty("counterWarning",r.get("counter_warning").getAsBoolean());p.addProperty("isOnline",connected&&r.get("online").getAsBoolean());result.add(p);}
-    JsonObject out=new JsonObject();out.add("rows",JSON.toJsonTree(result));out.addProperty("total",rows(c,"SELECT COUNT(*) n FROM pm_players WHERE "+where,archive,pattern,pattern).get(0).get("n").getAsLong());out.addProperty("page",page);out.addProperty("size",size);return out;
+    JsonObject out=new JsonObject();out.add("rows",JSON.toJsonTree(result));out.addProperty("total",rows(c,"SELECT COUNT(*) n FROM "+source+" WHERE "+where,archive,pattern,pattern).get(0).get("n").getAsLong());out.addProperty("page",page);out.addProperty("size",size);return out;
   }}
   public JsonObject lifetime(String player)throws Exception{try(Connection c=open()){return one(c,"SELECT COALESCE(SUM(total_ms),0) totalOnlineMillis,COALESCE(SUM(join_count),0) joinCount,COUNT(*) archives FROM pm_players WHERE uuid=?",uuid(player));}}
   public JsonObject logins(String archive,String player,int page,int size)throws Exception{try(Connection c=open()){JsonObject out=new JsonObject();out.add("rows",JSON.toJsonTree(rows(c,"SELECT event_id id,at_ms at,session_id sessionId,name FROM pm_logins WHERE archive_id=? AND uuid=? ORDER BY at_ms DESC,event_id DESC LIMIT ? OFFSET ?",uuid(archive),uuid(player),size,page*size)));out.addProperty("total",rows(c,"SELECT COUNT(*) n FROM pm_logins WHERE archive_id=? AND uuid=?",archive,player).get(0).get("n").getAsLong());out.addProperty("page",page);out.addProperty("size",size);return out;}}

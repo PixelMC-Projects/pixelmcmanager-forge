@@ -223,3 +223,10 @@ tasks.withType(Jar).configureEach {
     from(rootProject.file('NOTICE')) { into 'META-INF/pixelmc' }
     from(rootProject.file('LICENSE-EXCEPTION.md')) { into 'META-INF/pixelmc' }
 }
+
+
+tasks.register('platformIntegrationTest', JavaExec) {
+    dependsOn 'managerChecksClasses'
+    classpath = sourceSets.managerChecks.runtimeClasspath
+    mainClass = 'com.pixelmc.manager.service.PlatformChecks'
+}

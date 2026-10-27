@@ -1,24 +1,16 @@
 {
+  "storageMode": "unified",
   "database": {
-    "url": "jdbc:mariadb://memorialtitles-db:3306/pixelmc_manager",
-    "user": "pixelmc_manager",
+    "url": "jdbc:mariadb://pixelmc-db:3306/pixelmc_platform",
+    "user": "pixelmc_platform",
     "password": "REPLACE_BEFORE_START"
   },
-  "titlesDatabase": {
-    "url": "jdbc:mariadb://memorialtitles-db:3306/memorialtitles",
-    "user": "memorialtitles",
-    "password": "REUSE_EXISTING_DATABASE_CREDENTIAL"
-  },
-  "titlesEnabled": true,
+  "titlesEnabled": false,
+  "fortunesEnabled": false,
   "bind": "0.0.0.0",
   "port": 18800,
-  "publicUrl": "",
+  "publicUrl": "http://192.0.2.1:18800",
   "owners": [],
   "dataDirectory": "data",
-  "fortunesDatabase": {
-    "url": "jdbc:mariadb://memorialtitles-db:3306/dailyfortunes",
-    "user": "dailyfortunes",
-    "password": "REPLACE_BEFORE_START"
-  },
-  "fortunesEnabled": false
+  "backupRetentionDays": 30
 }

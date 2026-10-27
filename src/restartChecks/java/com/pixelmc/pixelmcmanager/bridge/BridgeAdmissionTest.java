@@ -2,6 +2,7 @@ package com.pixelmc.pixelmcmanager.bridge;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.pixelmc.pixelmcmanager.api.ManagerBridgeApi;
 import com.sun.net.httpserver.HttpServer;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
@@ -70,6 +71,11 @@ public final class BridgeAdmissionTest {
             int before = sent.get();
             rejected(agent.rpc("dailyfortunes", "history", data));
             check(sent.get() == before, "Logout revokes the proof before the next RPC");
+            ManagerBridgeApi.register("storage-compat","Compatibility check","1","");
+            ManagerBridgeApi.registerStorage("storage-compat","{\"version\":1,\"fields\":[]}");
+            int previous=sent.get();try{agent.rpc("storage-compat","platform","{\"op\":\"profiles.list\"}").get(5,TimeUnit.SECONDS);throw new AssertionError("Old service accepted namespaced module");}catch(ExecutionException expected){check(expected.getCause() instanceof IllegalStateException,"Old/missing storage negotiation fails clearly");}
+            check(sent.get()==previous,"Incompatible service receives no namespaced mutation");
+            field("platformStorage").setInt(agent,1);agent.rpc("storage-compat","platform","{\"op\":\"profiles.list\"}").get(5,TimeUnit.SECONDS);check(requests.take().get("extension").getAsString().equals("storage-compat"),"Negotiated unified storage uses generic RPC");
             System.out.println("Bridge admission checks passed: " + checks);
         } finally {
             try { for (String name : new String[]{"rpc", "io", "disk"}) {

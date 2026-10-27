@@ -3,3 +3,6 @@
 # are changed when only line endings change.
 src/generated/**/.cache/cache text eol=lf
 src/generated/**/*.json text eol=lf
+
+# Linux supervisors and deployment entrypoints must retain LF on Windows checkouts.
+*.sh text eol=lf

@@ -18,8 +18,16 @@ public final class ManagerBridgeApi {
             throw new IllegalArgumentException("Invalid extension metadata");
         if (EXTENSIONS.size()>=64 && !EXTENSIONS.containsKey(id)) throw new IllegalStateException("Extension limit");
         JsonObject value=new JsonObject();value.addProperty("id",id);value.addProperty("name",name);value.addProperty("version",version);
-        value.add("capabilities",JSON.toJsonTree(capabilities.isBlank()?List.of():Arrays.asList(capabilities.split(","))));EXTENSIONS.put(id,value);
+        value.add("capabilities",JSON.toJsonTree(capabilities.isBlank()?List.of():Arrays.asList(capabilities.split(","))));if(EXTENSIONS.putIfAbsent(id,value)!=null)throw new IllegalStateException("Duplicate extension: "+id);
     }
+    /** Register a versioned global/archive storage manifest before bridge hello. */
+    public static void registerStorage(String extension,String manifestJson){
+        JsonObject module=EXTENSIONS.get(extension);if(module==null)throw new IllegalStateException("Register extension metadata first");
+        if(manifestJson==null||manifestJson.length()>65536)throw new IllegalArgumentException("Storage manifest too large");
+        JsonObject manifest=JsonParser.parseString(manifestJson).getAsJsonObject();if(!manifest.has("version")||manifest.get("version").getAsInt()<1)throw new IllegalArgumentException("Storage schema version required");
+        synchronized(module){if(module.has("storage")&&!module.get("storage").equals(manifest))throw new IllegalStateException("Storage already registered");module.add("storage",manifest.deepCopy());}
+    }
+    public static boolean requiresPlatform(String id){JsonObject module=EXTENSIONS.get(id);return module!=null&&module.has("storage");}
     public static JsonArray extensions() { JsonArray result=new JsonArray();EXTENSIONS.values().stream().sorted(Comparator.comparing(v->v.get("id").getAsString())).forEach(v->result.add(v.deepCopy()));return result; }
     public static void onCallback(String extension, BiConsumer<String,String> handler) { CALLBACKS.put(extension,handler); }
     public static void callback(String extension,String op,String json) { var handler=CALLBACKS.get(extension);if(handler!=null)handler.accept(op,json); }

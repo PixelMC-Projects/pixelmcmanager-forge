@@ -13,7 +13,7 @@
 - 配置首次进服问候、回归问候和轮播公告，支持颜色与渐变。
 - 预约关服、维护和空服重启，也可在模组列表变化后安排空服重启。
 - 整合包结束后可归档数据，方便切换查看不同阶段的记录。
-- 通过扩展接入 MemorialTitles 等项目，统一管理入口。
+- 通过扩展接入 MemorialTitles、DailyFortunes 等项目，共用玩家库、头像与完整备份。
 
 ### 使用
 
@@ -34,7 +34,7 @@ Server monitoring, player records, and everyday administration in one place. Use
 - Customize first-join greetings, returning-player messages, and rotating announcements with colors and gradients.
 - Schedule shutdowns, maintenance, and empty-server restarts, including restarts after mod-list changes.
 - Archive completed modpacks and browse records from earlier seasons.
-- Bring extensions such as MemorialTitles into the same dashboard.
+- Bring extensions such as MemorialTitles and DailyFortunes into one dashboard with shared player identities, avatars and complete backups.
 
 ### Usage
 
