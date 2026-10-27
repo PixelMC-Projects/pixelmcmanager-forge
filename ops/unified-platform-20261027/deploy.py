@@ -318,7 +318,12 @@ def activate_changes():
     args = shlex.split(game['startCommand'])
     if args[:2] != ['bash', 'pixelmcmanager/activate-manager.sh']:
         raise RuntimeError('Unexpected original game launch command')
-    game['startCommand'] = 'bash pixelmcmanager/unified-20261027/start-game.sh ' + shlex.join(args[2:])
+    # MCSManager parses commands itself and preserves POSIX single quotes as data.
+    # Keep the original argument text, replacing only the already-reviewed wrapper.
+    old_prefix = 'bash pixelmcmanager/activate-manager.sh '
+    if not game['startCommand'].startswith(old_prefix):
+        raise RuntimeError('Unexpected original game command prefix')
+    game['startCommand'] = 'bash pixelmcmanager/unified-20261027/start-game.sh ' + game['startCommand'][len(old_prefix):]
     argv = shlex.split(web['startCommand'])
     if argv[:2] != ['bash', 'deployment/manager-ui-0.5.2-20261026/launch-manager.sh']:
         raise RuntimeError('Unexpected original web launch command')

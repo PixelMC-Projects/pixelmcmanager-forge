@@ -331,6 +331,17 @@ class DeploymentChecks(unittest.TestCase):
         self.assertEqual([deploy.GI, deploy.WI, deploy.GI, deploy.WI], updates)
         self.assert_no_service_control()
 
+    def test_original_jvm_text_with_wildcards_is_not_requoted_for_mcsm(self):
+        original = self.original_mcsm[deploy.GI]['startCommand'] + ' -Xlog:gc*,safepoint:file=logs/gc.log:time,uptime,level,tags:filecount=5,filesize=20M'
+        self.original_mcsm[deploy.GI]['startCommand'] = original
+        self.mcsm_configs = copy.deepcopy(self.original_mcsm)
+        self.activation_fixture()
+        deploy.activate()
+        expected = original.removeprefix('bash pixelmcmanager/activate-manager.sh ')
+        actual = self.mcsm_configs[deploy.GI]['startCommand'].removeprefix('bash pixelmcmanager/unified-20261027/start-game.sh ')
+        self.assertEqual(expected, actual)
+        self.assertNotIn("'", actual)
+
     def test_missing_original_daily_config_is_removed_again_after_activation_failure(self):
         self.activation_fixture()
         self.daily_path.unlink()
