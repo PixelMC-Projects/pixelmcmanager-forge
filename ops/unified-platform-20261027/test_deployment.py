@@ -229,6 +229,10 @@ class DeploymentChecks(unittest.TestCase):
 
     def fake_run(self, command, **kwargs):
         self.process_calls.append((command, kwargs))
+        if command[:2] == ['docker', 'inspect'] and len(command) == 3:
+            payload = json.dumps([{'State': self.container_states[command[2]],
+                'NetworkSettings': {'Networks': {deploy.NETWORK: {'IPAddress': '192.0.2.10'}}}}]).encode()
+            return SimpleNamespace(returncode=0, stdout=payload, stderr=b'')
         if 'mariadb-dump' in command:
             kwargs['stdout'].write(b'-- SYNTHETIC SQL BACKUP ONLY\n' * 100)
             return SimpleNamespace(returncode=0, stdout=b'', stderr=b'')
