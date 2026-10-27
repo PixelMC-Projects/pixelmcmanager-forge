@@ -22,6 +22,7 @@ public final class UnifiedReadiness {
       if (response.statusCode() != 200) throw new IllegalStateException();
       JsonObject value = JsonParser.parseString(response.body()).getAsJsonObject();
       if (!value.get("version").getAsString().equals("0.6.0")
+          || !value.has("platformStorage") || value.get("platformStorage").getAsInt() < 1
           || value.get("titlesApi").getAsInt() < 3 || !value.get("titlesHealthy").getAsBoolean()
           || !value.get("fortunesEnabled").getAsBoolean()) throw new IllegalStateException();
       System.out.println("[PixelMC unified] Authenticated 0.6.0 backend and both extensions ready.");

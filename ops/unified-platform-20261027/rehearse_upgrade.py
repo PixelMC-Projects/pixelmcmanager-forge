@@ -62,9 +62,11 @@ public final class UpgradeSeed {
       waitFor(titles.reconnect());
       waitFor(titles.login(id("shared"),"TitleShared"));
       waitFor(titles.login(id("titleOnly"),"TitleOnly"));
+      waitFor(titles.login(id("fake"),"alex"));
       waitFor(titles.saveTitle(console,title("fixture_memorial","云归旧岫"),0));
       waitFor(titles.saveTitle(console,title("fixture_reward","初会山川"),0));
       waitFor(titles.grant(console,List.of(id("shared"),id("titleOnly")),"fixture_memorial","Synthetic historical grant"));
+      waitFor(titles.grant(console,List.of(id("fake")),"fixture_memorial","Synthetic preserved fake-player history"));
       waitFor(titles.privacy(id("shared"),"fixture_memorial",true,false));
       waitFor(titles.equip(id("shared"),"fixture_memorial"));
       waitFor(titles.toggleDisplayPosition(id("titleOnly"),DisplayPosition.TAB));
@@ -108,6 +110,10 @@ public final class UpgradeProbe {
       Set<String> profiles=new HashSet<>();for(JsonElement p:controller.platform.profiles().getAsJsonArray("players"))profiles.add(p.getAsJsonObject().get("id").getAsString());
       check(profiles.equals(expected),"Global profile union matches old real-player stores");
       check(controller.titles.snapshot().players().keySet().stream().map(UUID::toString).collect(java.util.stream.Collectors.toSet()).equals(expected),"Titles roster matches the global union");
+      UUID fake=UUID.fromString(fixture.getAsJsonObject("players").get("fake").getAsString());
+      check(!controller.titles.snapshot().players().containsKey(fake)
+          && controller.titles.snapshot().ownership(fake,"fixture_memorial")!=null,
+          "Excluded legacy fake holder remains in durable business history without reappearing in the real-player directory");
       JsonObject fortunes=controller.fortunes.request("GET","/players",new JsonObject(),Map.of(),"rehearsal",Set.of());
       check(fortunes.get("total").getAsInt()==expected.size(),"Fortune roster matches the global union");
       UUID pmOnly=UUID.fromString(fixture.getAsJsonObject("players").get("pmOnly").getAsString());
