@@ -2,6 +2,8 @@
 
 [中文](#中文) · [English](#english)
 
+[统一下载 / All loaders and game versions](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1)
+
 ## 中文
 
 把服务器状态、玩家数据和日常管理集中到一个地方。模组可以独立使用，也可以接入常驻网页后台。
