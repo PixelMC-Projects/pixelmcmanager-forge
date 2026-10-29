@@ -2,12 +2,14 @@
 
 [中文](#中文) · [English](#english)
 
+[统一下载 / All loaders and game versions](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1)
+
 版本 / Versions（Manager 只需服务端安装 / server-only）:
 
 | Minecraft | Loader | Source branch | Download |
 | --- | --- | --- | --- |
 | 1.20.1 | Forge / Java17 | [mc-1.20.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/mc-1.20.1) | [0.6.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1) |
-| 1.21.1 | NeoForge / Java21 | [neoforge/1.21.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/neoforge/1.21.1) | [0.6.1 NeoForge](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1-neoforge-1.21.1) |
+| 1.21.1 | NeoForge / Java21 | [neoforge/1.21.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/neoforge/1.21.1) | [0.6.1 NeoForge](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1-1.21.1) |
 
 Fabric 1.20.1 / 1.21.1 / 26.1.2 / 26.2 位于独立的 [Fabric 仓库](https://github.com/PixelMC-Projects/pixelmcmanager-fabric)。各加载器共用最新的 [0.6.0.web.2 独立网页服务](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.0.web.2)。
 Fabric builds stay in the separate Fabric repository. All loaders share the latest independent web service linked above.
