@@ -6,8 +6,8 @@
 
 | Minecraft | Loader | Source branch | Download |
 | --- | --- | --- | --- |
-| 1.20.1 | Forge / Java17 | [mc-1.20.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/mc-1.20.1) | [0.6.0](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.0) |
-| 1.21.1 | NeoForge / Java21 | [neoforge/1.21.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/neoforge/1.21.1) | [0.6.0 NeoForge](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.0-neoforge-1.21.1) |
+| 1.20.1 | Forge / Java17 | [mc-1.20.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/mc-1.20.1) | [0.6.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1) |
+| 1.21.1 | NeoForge / Java21 | [neoforge/1.21.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/neoforge/1.21.1) | [0.6.1 NeoForge](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1-neoforge-1.21.1) |
 
 Fabric 1.20.1 / 1.21.1 / 26.1.2 / 26.2 位于独立的 [Fabric 仓库](https://github.com/PixelMC-Projects/pixelmcmanager-fabric)。各加载器共用最新的 [0.6.0.web.2 独立网页服务](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.0.web.2)。
 Fabric builds stay in the separate Fabric repository. All loaders share the latest independent web service linked above.
@@ -17,6 +17,8 @@ Fabric builds stay in the separate Fabric repository. All loaders share the late
 把服务器状态、玩家数据和日常管理集中到一个地方。模组可以独立使用，也可以接入常驻网页后台。
 
 ### 功能
+
+- 玩家可用 `/killme` 自杀，先以玩家聊天样式显示“自刎归天!!!”，再执行原版死亡流程。
 
 - 实时查看 TPS、MSPT、内存、在线玩家与维度状态。
 - 记录累计在线时长、登录次数和登录历史，保留离线玩家资料。
@@ -38,6 +40,8 @@ Fabric builds stay in the separate Fabric repository. All loaders share the late
 Server monitoring, player records, and everyday administration in one place. Use the mod on its own or connect it to an independently running web service.
 
 ### Features
+
+- Players can use `/killme` to announce “自刎归天!!!” in player-chat style, then die through vanilla's self-kill command.
 
 - Monitor live TPS, MSPT, memory, players, and dimensions.
 - Keep playtime totals, login counts, login history, and offline player profiles.

@@ -73,6 +73,7 @@ public final class PixelMCManagerCommands {
     public void onRegisterCommands(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
         dispatcher.register(managerRoot());
+        KillMeCommand.register(dispatcher);
     }
 
     private com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> managerRoot() {
