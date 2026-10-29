@@ -1,4 +1,4 @@
-# PixelMC Manager · Forge
+# PixelMC Manager · NeoForge
 
 [中文](#中文) · [English](#english)
 
@@ -17,7 +17,7 @@
 
 ### 使用
 
-适用于 Minecraft **1.20.1 / Forge**，只需服务端安装。
+适用于 Minecraft **1.21.1 / NeoForge**，只需服务端安装，Java 21。
 
 1. 将模组放入服务端 `mods/`，启动后生成 `config/pixelmcmanager.json`，按需修改问候、公告和管理配置。
 2. 只使用模组功能时，不需要数据库或网页程序。
@@ -38,7 +38,7 @@ Server monitoring, player records, and everyday administration in one place. Use
 
 ### Usage
 
-For Minecraft **1.20.1 / Forge**. Install on the server only.
+For Minecraft **1.21.1 / NeoForge**. Install on the server only; Java 21.
 
 1. Put the mod in the server's `mods/` folder. Start the server to generate `config/pixelmcmanager.json`, then configure greetings, announcements and management options.
 2. Standalone mod features need no database or web service.

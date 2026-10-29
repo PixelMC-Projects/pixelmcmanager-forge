@@ -1,0 +1,246 @@
+{
+  "forgeBaseline": "6b27a14adc0317143f1dec68e019a1430974e5c0",
+  "fabricAdapterBaseline": null,
+  "loader": "neoforge",
+  "minecraft": "1.21.1",
+  "java": 21,
+  "modVersion": "0.6.0",
+  "bridgeProtocol": 1,
+  "managerApiUnchanged": true,
+  "sources": [
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/api/ManagerBridgeApi.java",
+      "forgeSha256": "d721026925857903aa0a5748f73b8f20b8c642177433a1c40ee522a40413f0ca",
+      "portSha256": "d721026925857903aa0a5748f73b8f20b8c642177433a1c40ee522a40413f0ca",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/audit/AuditEntry.java",
+      "forgeSha256": "33f34ebd39d609745517ac548cc5a564288961dd3cc8e06b05a5e1424a83cf64",
+      "portSha256": "33f34ebd39d609745517ac548cc5a564288961dd3cc8e06b05a5e1424a83cf64",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/audit/AuditService.java",
+      "forgeSha256": "12d870eb3a4b6706b233a6528e8576b0399fc9f10b682b07f5b38056187a925c",
+      "portSha256": "12d870eb3a4b6706b233a6528e8576b0399fc9f10b682b07f5b38056187a925c",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/bridge/BridgeAgent.java",
+      "forgeSha256": "40f01d389331c709023ccc07e2b0b84a7e699dc1a9225424416af1b64333ebd1",
+      "portSha256": "2cabbc551c790faeb1cacaff51bd2326828c86c3e8c04f2813e5315d74907d90",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/bridge/BridgeConfig.java",
+      "forgeSha256": "6213df6e9a98503e27e90fea0f9fdd65cd1976244a648e43ac176edfb117b246",
+      "portSha256": "6213df6e9a98503e27e90fea0f9fdd65cd1976244a648e43ac176edfb117b246",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/bridge/TelemetrySpool.java",
+      "forgeSha256": "b0bed0469ac6e0043ad21d7e8cc2e3abdd616bd74ed70eb7ce9f45c92fb4c467",
+      "portSha256": "b0bed0469ac6e0043ad21d7e8cc2e3abdd616bd74ed70eb7ce9f45c92fb4c467",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/command/PixelMCManagerCommands.java",
+      "forgeSha256": "fae1e437353e5ba1fb616e04955086f45b6762ce56c1fe0f35e49c66c1db5ccb",
+      "portSha256": "329a4298d045ecc7846da17dd9a1c6bdc8480fba8045e7693dacf2b0fc9dd747",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/compat/BackgroundExecutorShutdown.java",
+      "forgeSha256": "112f283b5f64cb5a4562358787eeffb8ca87853c01f3f2036cd6d42b1dd78d4e",
+      "portSha256": "112f283b5f64cb5a4562358787eeffb8ca87853c01f3f2036cd6d42b1dd78d4e",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/config/AnnouncementConfig.java",
+      "forgeSha256": "b6c389db3283f226c658197a9abe22c796c59492d17eed991c9cf766561f9bd8",
+      "portSha256": "b6c389db3283f226c658197a9abe22c796c59492d17eed991c9cf766561f9bd8",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/config/PermissionConfig.java",
+      "forgeSha256": "c88aa7b2ff654fd96cc7fb840e3cfcf71af148d57c643f80d5ce56675aa68b31",
+      "portSha256": "c88aa7b2ff654fd96cc7fb840e3cfcf71af148d57c643f80d5ce56675aa68b31",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/config/RestartConfig.java",
+      "forgeSha256": "2958ec412bc2059e611edb0afdb9afaf238d0e7435893f3ce62fbc890ae90ac7",
+      "portSha256": "2958ec412bc2059e611edb0afdb9afaf238d0e7435893f3ce62fbc890ae90ac7",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/config/WelcomeConfig.java",
+      "forgeSha256": "60e04d24ca70e0b3be3040285676f2ece0cad8227a422bb53415251e99f3ff95",
+      "portSha256": "60e04d24ca70e0b3be3040285676f2ece0cad8227a422bb53415251e99f3ff95",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/config/WelcomeConfigManager.java",
+      "forgeSha256": "7eb5bf0052f9e54519dce0ed3d074b7149a505c140dc78f165bbbe02c1800fb8",
+      "portSha256": "9360ad2ca3a325c2dd43d3dcd4458249441a765aab6612a1123db8b7a58c1d12",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/event/AnnouncementScheduler.java",
+      "forgeSha256": "323cc680459fa9b0e4bed07285ea3fb5004f998795b9925dd342c34f437f3b98",
+      "portSha256": "323cc680459fa9b0e4bed07285ea3fb5004f998795b9925dd342c34f437f3b98",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/event/DelayedMessageScheduler.java",
+      "forgeSha256": "f35b118b0e4e8297d231ead91323f6c6fa0009535496128c89157b4e8c7870ae",
+      "portSha256": "d2b32d843d286b97e27a27d3f273ad1ade032a505ef24e7dea8a5a8390fd1595",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/event/NeoForgeEvents.java",
+      "forgeSha256": null,
+      "portSha256": "0d9170da06b6f9806d71f9bacdfc5dab2f02db01ef0b4e72fa8b6125a1f93b4b",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/event/WelcomeEventHandler.java",
+      "forgeSha256": "e10c624ac46bad79c7afcdb1bef1bd9afe6048d755dd4824b96ab3a6cddfdc0b",
+      "portSha256": "b2dc565e684b9a22d1ed4135e3442cfd3a745b52670c6793bdc9d32815985291",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/maintenance/MaintenancePlan.java",
+      "forgeSha256": "47ac64e1196d61aaec41056277b5ed057de325f0df7903f709d4b31dfdbc3a42",
+      "portSha256": "47ac64e1196d61aaec41056277b5ed057de325f0df7903f709d4b31dfdbc3a42",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/maintenance/MaintenanceScheduler.java",
+      "forgeSha256": "8e2ce63942e4ff10b89ea560627d39f28eafa56d94901fb3b7abde414ee134ec",
+      "portSha256": "8e2ce63942e4ff10b89ea560627d39f28eafa56d94901fb3b7abde414ee134ec",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/maintenance/StopServerPlan.java",
+      "forgeSha256": "baee4ab333be6e4a74ae0607ead7c1064307ae92e2662b0095c1b85d6064d2a4",
+      "portSha256": "baee4ab333be6e4a74ae0607ead7c1064307ae92e2662b0095c1b85d6064d2a4",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/maintenance/StopServerScheduler.java",
+      "forgeSha256": "db44824f40f5384de229fe902afb5b806016fe3c4724f6e31ef52a8e10bfec39",
+      "portSha256": "37caafc254cf8855dcb8dd8de74b9e841a7417a43a07abd0f1b0a56ecc384319",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/maintenance/TimeArgumentParser.java",
+      "forgeSha256": "32d3232671418348e29efacefb402e6d4a9124b51f80eff2084f59b30d483d53",
+      "portSha256": "32d3232671418348e29efacefb402e6d4a9124b51f80eff2084f59b30d483d53",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/PixelMCManager.java",
+      "forgeSha256": "75153d8ba84255320ca17a47ebb7e741be90430f99bb4ccceb860673310712ee",
+      "portSha256": "d6aaafe9279135f0546780d3730986987ea56e50d7a98b66ae449cac6863964b",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/placeholder/PlaceholderContext.java",
+      "forgeSha256": "6274c7437b781347e066f187d9c57fbbd3ee0cb46697847e0a332945ee08fd92",
+      "portSha256": "6274c7437b781347e066f187d9c57fbbd3ee0cb46697847e0a332945ee08fd92",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/placeholder/PlaceholderResolver.java",
+      "forgeSha256": "685175eed120974f60c4e00366421e85fd63d3b78959fece9039c6b391dfb742",
+      "portSha256": "5d1fd1b05baa7cddb70d553617055d5968a9391f29bba5aec8848e7d4670047a",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/restart/IdleRestartScheduler.java",
+      "forgeSha256": "4ddcaa6790b96e7b10b10460d28afcaacbf6838f7d1ba06cd79ad007d28e4c66",
+      "portSha256": "1154f750485b45fd127f865af33d670e17808e0566d73eaf8d5bf78e0cd88715",
+      "unchangedAfterLineEndings": false
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/restart/IdleRestartState.java",
+      "forgeSha256": "e216f3841ee97d272805c67329d70df920fab0a7a2ac3ef9becdcc357fa5b93f",
+      "portSha256": "e216f3841ee97d272805c67329d70df920fab0a7a2ac3ef9becdcc357fa5b93f",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/restart/ModDirectoryMonitor.java",
+      "forgeSha256": "27dbbd23a7006244aa1359f38e75c421650ee79fb71f62db8a0d67a4bef38fd0",
+      "portSha256": "27dbbd23a7006244aa1359f38e75c421650ee79fb71f62db8a0d67a4bef38fd0",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/restart/ModDirectorySnapshot.java",
+      "forgeSha256": "ede8217ecfb7c53139486be532d083bb044c1cd9520bed51c8f046760762c4e6",
+      "portSha256": "ede8217ecfb7c53139486be532d083bb044c1cd9520bed51c8f046760762c4e6",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/restart/RestartBridgeClient.java",
+      "forgeSha256": "c9d3a4d00bb85317df30901593353d8146c20dc2f39aad3200426b53821fb1fc",
+      "portSha256": "c9d3a4d00bb85317df30901593353d8146c20dc2f39aad3200426b53821fb1fc",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/runtime/ServerRuntimeStats.java",
+      "forgeSha256": "4f6680183250f90ff7db276e44fa70f87ee90fe9582ceacf1edf91d9b5546db6",
+      "portSha256": "4f6680183250f90ff7db276e44fa70f87ee90fe9582ceacf1edf91d9b5546db6",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/stats/PlayerLoginSnapshot.java",
+      "forgeSha256": "e50f9d1a195d87b4b581fe983ec238ea6721954e3f097786d23d7f09e79b8499",
+      "portSha256": "e50f9d1a195d87b4b581fe983ec238ea6721954e3f097786d23d7f09e79b8499",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/stats/PlayerStats.java",
+      "forgeSha256": "cd5e5c9efcc9f6ed1088c1557527814b62bc094279ed2f14d69453111cca7d83",
+      "portSha256": "cd5e5c9efcc9f6ed1088c1557527814b62bc094279ed2f14d69453111cca7d83",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/stats/PlayerStatsEntry.java",
+      "forgeSha256": "b72ea80170f48a7bb9fa854aee9eb137bf113d031031ca6e287b732b626ee222",
+      "portSha256": "b72ea80170f48a7bb9fa854aee9eb137bf113d031031ca6e287b732b626ee222",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/stats/PlayerStatsStore.java",
+      "forgeSha256": "19db01e3614bdd1ef0450d82297fb39ab34cea5ce0e376dd22208a602c469ec5",
+      "portSha256": "19db01e3614bdd1ef0450d82297fb39ab34cea5ce0e376dd22208a602c469ec5",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/text/GradientParser.java",
+      "forgeSha256": "5ee61bdb90f6d234e6b8a2375792453ec2b07b2fb5aa2421267b02f56624661f",
+      "portSha256": "5ee61bdb90f6d234e6b8a2375792453ec2b07b2fb5aa2421267b02f56624661f",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/text/LegacyFormatParser.java",
+      "forgeSha256": "c674b2342b324b2ad5fb862d127ba8cbddfe3729de8576ac28ba52befc78a135",
+      "portSha256": "c674b2342b324b2ad5fb862d127ba8cbddfe3729de8576ac28ba52befc78a135",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/text/TextTemplateParser.java",
+      "forgeSha256": "8bd9d5c23ea854adf1f4773fcd4b7751216524be9cc5949febca17bd1cd0cc57",
+      "portSha256": "8bd9d5c23ea854adf1f4773fcd4b7751216524be9cc5949febca17bd1cd0cc57",
+      "unchangedAfterLineEndings": true
+    },
+    {
+      "path": "src/main/java/com/pixelmc/pixelmcmanager/util/TimeFormatUtil.java",
+      "forgeSha256": "dd1cdacadb7910311903eae21faa81caaa81b7b489ad74febb77ea9d72bf2fa9",
+      "portSha256": "dd1cdacadb7910311903eae21faa81caaa81b7b489ad74febb77ea9d72bf2fa9",
+      "unchangedAfterLineEndings": true
+    }
+  ]
+}

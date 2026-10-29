@@ -9,7 +9,6 @@ import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
 import com.pixelmc.pixelmcmanager.text.TextTemplateParser;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.TickEvent;
 
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -41,13 +40,8 @@ public final class DelayedMessageScheduler {
         queue.removeIf(entry -> entry.playerId().equals(playerId));
     }
 
-    public void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) {
-            return;
-        }
-
+    public void tick(MinecraftServer server) {
         serverTicks++;
-        MinecraftServer server = event.getServer();
         Iterator<ScheduledMessage> iterator = queue.iterator();
         while (iterator.hasNext()) {
             ScheduledMessage entry = iterator.next();

@@ -14,7 +14,7 @@
 2. 填写 `database`、`bind`、`port`、`publicUrl`。新配置默认 `storageMode: "unified"`；各插件共用该数据库，无需分别建库。对外访问时使用 `0.0.0.0` 并开放网页端口。
 3. 把自选密码存入私密文本文件，执行 `java -jar service.jar init-admin manager.json <用户名> <玩家UUID> <密码文件>`。
 4. 运行 `java -jar service.jar instance manager.json minecraft`，将生成的 `data/credentials/minecraft-bridge.json` 复制为游戏服的 `config/pixelmcmanager-bridge.json`。容器之间的 `baseUrl` 应使用互通的地址。
-5. 运行 `java -jar service.jar run manager.json`，正常启动安装了对应 Forge / Fabric Manager 的游戏服，在网页绑定当前整合包和存档。
+5. 运行 `java -jar service.jar run manager.json`，正常启动安装了对应 Forge / Fabric / NeoForge Manager 的游戏服，在网页绑定当前整合包和存档。
 6. 需要时开启 `titlesEnabled` / `fortunesEnabled`，安装加载器兼容的 [MemorialTitles](https://github.com/PixelMC-Projects/MemorialTitles) / [DailyFortunes](https://github.com/PixelMC-Projects/DailyFortunes)，按其 README 选择 Manager 模式。后台控制台输入 `stop` 正常结束。
 
 Manager 维护统一玩家身份、账号和头像；插件在各自命名空间保存资料。称号与签历使用全局数据，游玩统计和登录历史按整合包归档。仅清理某插件的玩家资料不会删除全局玩家或头像。
@@ -41,7 +41,7 @@ Requires **Java 17 and MariaDB**; MCSManager / Docker can supervise it.
 2. Set `database`, `bind`, `port` and `publicUrl`. New configurations use `storageMode: "unified"`; extensions share that database. Bind to `0.0.0.0` and expose the web port for external access.
 3. Save a chosen password in a private text file, then run `java -jar service.jar init-admin manager.json <username> <player-UUID> <password-file>`.
 4. Run `java -jar service.jar instance manager.json minecraft`. Copy `data/credentials/minecraft-bridge.json` to the game's `config/pixelmcmanager-bridge.json`. Its `baseUrl` must be reachable from the game container.
-5. Run `java -jar service.jar run manager.json`, start the matching Forge / Fabric Manager mod, and bind the current modpack/world in the dashboard.
+5. Run `java -jar service.jar run manager.json`, start the matching Forge / Fabric / NeoForge Manager mod, and bind the current modpack/world in the dashboard.
 6. Optionally enable `titlesEnabled` / `fortunesEnabled` and install loader-compatible MemorialTitles / DailyFortunes builds in Manager mode. Enter `stop` in the backend console to shut it down.
 
 Manager owns shared player identities, accounts and avatars. Extensions store namespaced data. Titles and fortune collections are global; playtime and login history retain their modpack archive scope. Plugin-local cleanup preserves the shared identity and avatar.

@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This repository is a Forge 1.20.1 / Java 17 server-side mod project.
+This repository is a NeoForge 1.21.1 / Java 21 server-side mod project.
 
 Hard rules:
 - Keep mod id as pixelmcmanager.
-- Keep Java 17 compatibility.
+- Keep Java 21 compatibility.
 - Do not require client installation.
 - Do not add gameplay content, blocks, items, entities, GUI, Mixin, or networking unless explicitly requested.
 - Keep player stats in the active world save root under pixelmcmanager/player_stats.json.
@@ -21,6 +21,7 @@ Hard rules:
 GitHub Release title format:
 - Forge: PixelMC Manager Forge <mod_version>
 - Fabric: PixelMC Manager Fabric <mod_version>
+- NeoForge: PixelMC Manager NeoForge <mod_version>
 
 Examples:
 - PixelMC Manager Forge 0.2.2

@@ -1,23 +1,8 @@
 pluginManagement {
     repositories {
-        maven {
-            name = 'Aliyun Gradle Plugin'
-            url = 'https://maven.aliyun.com/repository/gradle-plugin'
-        }
-        maven {
-            name = 'Aliyun Public'
-            url = 'https://maven.aliyun.com/repository/public'
-        }
+        maven { url = 'https://maven.neoforged.net/releases' }
         gradlePluginPortal()
-        maven {
-            name = 'MinecraftForge'
-            url = 'https://maven.minecraftforge.net/'
-        }
+        mavenCentral()
     }
 }
-
-plugins {
-    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.7.0'
-}
-
-rootProject.name = 'pixelmcmanager-1.20.1'
+rootProject.name = 'pixelmcmanager-neoforge-1.21.1'

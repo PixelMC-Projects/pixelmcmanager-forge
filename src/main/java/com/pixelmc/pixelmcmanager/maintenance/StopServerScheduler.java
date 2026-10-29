@@ -9,7 +9,6 @@ import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.TickEvent;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -74,13 +73,12 @@ public final class StopServerScheduler {
         return true;
     }
 
-    public synchronized void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || plan == null) {
+    public synchronized void tick(MinecraftServer server) {
+        if (plan == null) {
             return;
         }
 
         long nowMillis = System.currentTimeMillis();
-        MinecraftServer server = event.getServer();
         if (!plan.maintenanceActive()) {
             sendDueWarnings(server, nowMillis);
             if (nowMillis >= plan.kickTimeMillis()) {

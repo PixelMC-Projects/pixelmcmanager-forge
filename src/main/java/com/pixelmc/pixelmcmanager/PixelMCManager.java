@@ -14,8 +14,8 @@ import com.pixelmc.pixelmcmanager.runtime.ServerRuntimeStats;
 import com.pixelmc.pixelmcmanager.restart.IdleRestartScheduler;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
 import com.pixelmc.pixelmcmanager.text.TextTemplateParser;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.fml.common.Mod;
 import org.slf4j.Logger;
 
 @Mod(PixelMCManager.MOD_ID)
@@ -37,9 +37,8 @@ public final class PixelMCManager {
         ServerRuntimeStats runtimeStats = new ServerRuntimeStats();
         var bridge = new com.pixelmc.pixelmcmanager.bridge.BridgeAgent(statsStore, configManager, maintenanceScheduler, stopServerScheduler, restartScheduler);
 
-        MinecraftForge.EVENT_BUS.register(new WelcomeEventHandler(configManager, statsStore, auditService, scheduler, announcementScheduler, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler, bridge));
-        MinecraftForge.EVENT_BUS.register(bridge);
-        MinecraftForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, auditService, placeholderResolver, textParser, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler));
+        NeoForge.EVENT_BUS.register(new com.pixelmc.pixelmcmanager.event.NeoForgeEvents(new WelcomeEventHandler(configManager, statsStore, auditService, scheduler, announcementScheduler, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler, bridge), bridge));
+        NeoForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, auditService, placeholderResolver, textParser, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler));
 
         configManager.loadOrCreate();
         LOGGER.info("PixelMC Manager loaded.");

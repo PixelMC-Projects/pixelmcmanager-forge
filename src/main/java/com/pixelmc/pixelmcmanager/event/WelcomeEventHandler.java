@@ -9,11 +9,7 @@ import com.pixelmc.pixelmcmanager.restart.IdleRestartScheduler;
 import com.pixelmc.pixelmcmanager.stats.PlayerLoginSnapshot;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.server.ServerStartedEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraft.server.MinecraftServer;
 
 public final class WelcomeEventHandler {
     private final WelcomeConfigManager configManager;
@@ -41,21 +37,16 @@ public final class WelcomeEventHandler {
         this.bridge = bridge;
     }
 
-    @SubscribeEvent
-    public void onServerStarted(ServerStartedEvent event) {
+    public void onServerStarted(MinecraftServer server) {
         configManager.loadOrCreate();
-        statsStore.load(event.getServer());
-        auditService.load(event.getServer());
+        statsStore.load(server);
+        auditService.load(server);
         lastStatsCheckpointMillis = System.currentTimeMillis();
         runtimeStats.markServerStarted(lastStatsCheckpointMillis);
-        restartScheduler.start(event.getServer());
+        restartScheduler.start(server);
     }
 
-    @SubscribeEvent
-    public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) {
-            return;
-        }
+    public void onPlayerLoggedIn(ServerPlayer player) {
         if (stopServerScheduler.rejectMaintenanceJoin(player)) {
             return;
         }
@@ -67,7 +58,7 @@ public final class WelcomeEventHandler {
         if (com.pixelmc.pixelmcmanager.bridge.BridgeAgent.fake(player)) return;
 
         long nowMillis = System.currentTimeMillis();
-        if (!statsStore.ensureLoaded(player.server)) {
+        if (!statsStore.ensureLoaded(player.level().getServer())) {
             return;
         }
         PlayerLoginSnapshot snapshot = statsStore.recordLogin(player, nowMillis);
@@ -76,11 +67,7 @@ public final class WelcomeEventHandler {
         scheduler.schedule(player, snapshot.firstJoin(), snapshot.previousLastJoinEpochMillis());
     }
 
-    @SubscribeEvent
-    public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) {
-            return;
-        }
+    public void onPlayerLoggedOut(ServerPlayer player) {
 
         scheduler.cancel(player.getUUID());
         bridge.logout(player.getUUID());
@@ -88,31 +75,23 @@ public final class WelcomeEventHandler {
         statsStore.save();
     }
 
-    @SubscribeEvent
-    public void onServerTick(TickEvent.ServerTickEvent event) {
-        stopServerScheduler.onServerTick(event);
-        if (event.phase == TickEvent.Phase.END) {
-            maintenanceScheduler.tick(event.getServer());
-            restartScheduler.tick(event.getServer());
-        }
-        scheduler.onServerTick(event);
-        if (event.phase == TickEvent.Phase.END) {
-            announcementScheduler.tick(event.getServer());
-        }
-        if (event.phase != TickEvent.Phase.END || !statsStore.hasOnlineSessions()) {
-            return;
-        }
+    public void onServerTick(MinecraftServer server) {
+        stopServerScheduler.tick(server);
+        maintenanceScheduler.tick(server);
+        restartScheduler.tick(server);
+        scheduler.tick(server);
+        announcementScheduler.tick(server);
+        if (!statsStore.hasOnlineSessions()) return;
 
         long nowMillis = System.currentTimeMillis();
         long intervalMillis = configManager.getConfig().statsAutoSaveSeconds * 1_000L;
         if (lastStatsCheckpointMillis <= 0L || nowMillis - lastStatsCheckpointMillis >= intervalMillis) {
-            statsStore.checkpointOnlinePlayers(event.getServer(), nowMillis, true);
+            statsStore.checkpointOnlinePlayers(server, nowMillis, true);
             lastStatsCheckpointMillis = nowMillis;
         }
     }
 
-    @SubscribeEvent
-    public void onServerStopping(ServerStoppingEvent event) {
+    public void onServerStopping(MinecraftServer server) {
         restartScheduler.stop();
         statsStore.settleAll(System.currentTimeMillis());
         statsStore.save();

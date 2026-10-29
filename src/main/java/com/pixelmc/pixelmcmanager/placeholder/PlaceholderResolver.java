@@ -64,7 +64,7 @@ public final class PlaceholderResolver {
         values.put("playtime", () -> TimeFormatUtil.formatFriendly(stats == null ? 0L : stats.totalOnlineMillis));
         values.put("playtime_hours", () -> Long.toString((stats == null ? 0L : stats.totalOnlineMillis) / 3_600_000L));
         values.put("playtime_minutes", () -> Long.toString((stats == null ? 0L : stats.totalOnlineMillis) / 60_000L));
-        values.put("ping", () -> Integer.toString(Math.max(0, context.player().latency)));
+        values.put("ping", () -> Integer.toString(Math.max(0, context.player().connection.latency())));
         values.put("date", () -> formatNow(context.config().dateFormat, zoneId));
         values.put("time", () -> formatNow(context.config().timeFormat, zoneId));
         values.put("first_join_date", () -> formatEpoch(stats == null ? 0L : stats.firstJoinEpochMillis, context.config().dateFormat, zoneId));
