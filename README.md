@@ -8,6 +8,8 @@
 
 ### 功能
 
+- 玩家可用 `/killme` 自杀，先以玩家聊天样式显示“自刎归天!!!”，再执行原版死亡流程。
+
 - 实时查看 TPS、MSPT、内存、在线玩家与维度状态。
 - 记录累计在线时长、登录次数和登录历史，保留离线玩家资料。
 - 配置首次进服问候、回归问候和轮播公告，支持颜色与渐变。
@@ -28,6 +30,8 @@
 Server monitoring, player records, and everyday administration in one place. Use the mod on its own or connect it to an independently running web service.
 
 ### Features
+
+- Players can use `/killme` to announce “自刎归天!!!” in player-chat style, then die through vanilla's self-kill command.
 
 - Monitor live TPS, MSPT, memory, players, and dimensions.
 - Keep playtime totals, login counts, login history, and offline player profiles.
