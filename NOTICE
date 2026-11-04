@@ -7,3 +7,7 @@ This source tree is licensed under GNU AGPL version 3 only (AGPL-3.0-only), with
 Third-party code, libraries, fonts, and other assets retain their own licenses. This project does not claim their authorship or relicense them. Earlier copies distributed under other licenses retain the permissions already granted for those copies; this notice does not revoke them.
 
 本项目原作者为 zcpu / PixelMC。保留原有版权、许可证和署名声明，修改版须依许可证标注修改并提供对应源码。第三方内容保留原许可；此前已经授予的许可不被追溯撤回。
+
+Player-card web preview: HubTitleCardPreview.jsx and hubTitleCardPreview.css adapt the original title-card markup/material rules from PixelMCPlayerHub src/App.jsx and src/glass-theme.css, Copyright 2026 zhan_cpu / PixelMC Projects, Apache-2.0. Modified for live administrator drafts, rich glyphs, explicit sample states, scoped CSS and an independently implemented lightweight hover transform. Apache license: web-console/public/licenses/PixelMC-Hub-Apache-2.0.txt. No React Bits vendor component or algorithm is included.
+
+The fixed Lucide SVG icon nodes in web-console/src/titles/hubTitleIconPaths.json retain the ISC license and original Lucide/Feather copyright. Full notice: web-console/public/licenses/Lucide-LICENSE.txt.

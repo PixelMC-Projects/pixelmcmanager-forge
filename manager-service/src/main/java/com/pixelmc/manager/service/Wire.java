@@ -26,5 +26,7 @@ public final class Wire {
   public static Map<String,String> query(HttpExchange e){Map<String,String> out=new HashMap<>();for(String pair:Objects.toString(e.getRequestURI().getRawQuery(),"").split("&")){if(pair.isEmpty())continue;String[] p=pair.split("=",2);out.put(java.net.URLDecoder.decode(p[0],StandardCharsets.UTF_8),p.length<2?"":java.net.URLDecoder.decode(p[1],StandardCharsets.UTF_8));}return out;}
   public static int integer(Map<String,String> q,String key,int value,int min,int max){try{return Math.max(min,Math.min(max,Integer.parseInt(q.getOrDefault(key,""+value))));}catch(Exception e){throw new IllegalArgumentException(key+"参数无效");}}
   public static void json(HttpExchange e,int status,Object o)throws Exception{byte[] b=JSON.toJson(o).getBytes(StandardCharsets.UTF_8);e.getResponseHeaders().set("Content-Type","application/json; charset=utf-8");e.sendResponseHeaders(status,b.length);e.getResponseBody().write(b);}
+  /** Player DTO nulls carry explicit unavailable/empty semantics. Other HTTP output stays unchanged. */
+  public static void playerJson(HttpExchange e,int status,JsonObject o)throws Exception{byte[] b=o.toString().getBytes(StandardCharsets.UTF_8);e.getResponseHeaders().set("Content-Type","application/json; charset=utf-8");e.sendResponseHeaders(status,b.length);e.getResponseBody().write(b);}
   private Wire(){}
 }

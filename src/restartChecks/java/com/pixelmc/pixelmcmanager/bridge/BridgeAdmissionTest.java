@@ -37,9 +37,10 @@ public final class BridgeAdmissionTest {
         BlockingQueue<JsonObject> requests = new LinkedBlockingQueue<>();
         AtomicInteger sent = new AtomicInteger();
         http.createContext("/bridge/rpc", exchange -> {
-            requests.add(JsonParser.parseString(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject());
+            JsonObject incoming=JsonParser.parseString(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+            requests.add(incoming);
             sent.incrementAndGet();
-            byte[] response = "{}".getBytes(StandardCharsets.UTF_8);
+            byte[] response = (incoming.get("op").getAsString().equals("playerHub") ? "{\"result\":{\"todayRecord\":null}}" : "{}").getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, response.length);
             try (var output = exchange.getResponseBody()) { output.write(response); }
         });
@@ -55,6 +56,7 @@ public final class BridgeAdmissionTest {
             String data = "{\"args\":[\"" + player + "\"]}";
             rejected(agent.rpc("dailyfortunes", "draw", data));
             rejected(agent.rpc("memorialtitles", "login", data));
+            rejected(agent.rpc("memorialtitles", "playerHub", data));
             check(sent.get() == 0, "Denied player calls never reach HTTP");
 
             @SuppressWarnings("unchecked") Set<UUID> admitted = (Set<UUID>) field("admitted").get(agent);
@@ -67,9 +69,13 @@ public final class BridgeAdmissionTest {
             }
             agent.rpc("memorialtitles", "login", data).get(5, TimeUnit.SECONDS);
             check(requests.take().get("playerProof").getAsString().equals(player.toString()), "Existing title login proof is retained");
+            String hubResponse = agent.rpc("memorialtitles", "playerHub", "{\"args\":[\"" + player + "\",\"snapshot\",{}]}").get(5, TimeUnit.SECONDS);
+            check(requests.take().get("playerProof").getAsString().equals(player.toString()), "Hub title proof is attached only for an admitted player");
+            check(JsonParser.parseString(hubResponse).getAsJsonObject().getAsJsonObject("result").get("todayRecord").isJsonNull(), "Player DTO explicit null survives bridge reserialization");
             agent.logout(player);
             int before = sent.get();
             rejected(agent.rpc("dailyfortunes", "history", data));
+            rejected(agent.rpc("memorialtitles", "playerHub", data));
             check(sent.get() == before, "Logout revokes the proof before the next RPC");
             ManagerBridgeApi.register("storage-compat","Compatibility check","1","");
             ManagerBridgeApi.registerStorage("storage-compat","{\"version\":1,\"fields\":[]}");
