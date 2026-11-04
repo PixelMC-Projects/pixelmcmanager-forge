@@ -1,0 +1,148 @@
+{
+  "badges": [
+    {
+      "id": "leaf",
+      "label": "草木"
+    },
+    {
+      "id": "mountain",
+      "label": "山野"
+    },
+    {
+      "id": "star",
+      "label": "星光"
+    },
+    {
+      "id": "house",
+      "label": "筑造"
+    },
+    {
+      "id": "moon",
+      "label": "月夜"
+    },
+    {
+      "id": "wheat",
+      "label": "丰收"
+    },
+    {
+      "id": "sun",
+      "label": "曙光"
+    },
+    {
+      "id": "cloud",
+      "label": "云游"
+    },
+    {
+      "id": "personal",
+      "label": "个人专属"
+    }
+  ],
+  "rarities": [
+    {
+      "id": "none",
+      "label": "",
+      "color": 10197926
+    },
+    {
+      "id": "common",
+      "label": "普通",
+      "color": 10135956
+    },
+    {
+      "id": "rare",
+      "label": "稀有",
+      "color": 10201794
+    },
+    {
+      "id": "treasured",
+      "label": "珍藏",
+      "color": 13021578
+    }
+  ],
+  "themes": [
+    {
+      "id": "rose",
+      "label": "柔玫瑰",
+      "accent": 12095129,
+      "light": 15853033
+    },
+    {
+      "id": "terracotta",
+      "label": "陶土",
+      "accent": 12227715,
+      "light": 15853537
+    },
+    {
+      "id": "amber",
+      "label": "琥珀",
+      "accent": 12099704,
+      "light": 15854559
+    },
+    {
+      "id": "wheat",
+      "label": "麦色",
+      "accent": 11971204,
+      "light": 15789535
+    },
+    {
+      "id": "olive",
+      "label": "橄榄",
+      "accent": 10791555,
+      "light": 15461854
+    },
+    {
+      "id": "sage",
+      "label": "鼠尾草",
+      "accent": 10006168,
+      "light": 15199973
+    },
+    {
+      "id": "jade",
+      "label": "柔玉",
+      "accent": 8957344,
+      "light": 14937832
+    },
+    {
+      "id": "teal",
+      "label": "青灰",
+      "accent": 9022125,
+      "light": 15003119
+    },
+    {
+      "id": "blue",
+      "label": "雾蓝",
+      "accent": 9545918,
+      "light": 15068403
+    },
+    {
+      "id": "indigo",
+      "label": "靛灰",
+      "accent": 10198973,
+      "light": 15264243
+    },
+    {
+      "id": "lavender",
+      "label": "薰衣草",
+      "accent": 11378877,
+      "light": 15657203
+    },
+    {
+      "id": "mauve",
+      "label": "淡紫藕",
+      "accent": 11639468,
+      "light": 15787757
+    },
+    {
+      "id": "cocoa",
+      "label": "可可",
+      "accent": 11377809,
+      "light": 15657445
+    },
+    {
+      "id": "slate",
+      "label": "岩灰",
+      "accent": 10331054,
+      "light": 15264751
+    }
+  ]
+}

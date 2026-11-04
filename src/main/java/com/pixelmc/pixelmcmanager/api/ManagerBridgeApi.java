@@ -12,13 +12,13 @@ public final class ManagerBridgeApi {
     private static final Map<String, JsonObject> EXTENSIONS = new ConcurrentHashMap<>();
     private static final Map<String, BiConsumer<String,String>> CALLBACKS = new ConcurrentHashMap<>();
     private static volatile BridgeAgent agent;
-    public static void attach(BridgeAgent value) { agent = value; }
+    public static void attach(BridgeAgent value) { agent = value; if(value==null)CALLBACKS.clear(); }
     public static void register(String id, String name, String version, String capabilities) {
         if (!id.matches("[a-z0-9_.-]{1,64}") || name.length()>128 || version.length()>64 || capabilities.length()>2048)
             throw new IllegalArgumentException("Invalid extension metadata");
         if (EXTENSIONS.size()>=64 && !EXTENSIONS.containsKey(id)) throw new IllegalStateException("Extension limit");
         JsonObject value=new JsonObject();value.addProperty("id",id);value.addProperty("name",name);value.addProperty("version",version);
-        value.add("capabilities",JSON.toJsonTree(capabilities.isBlank()?List.of():Arrays.asList(capabilities.split(","))));if(EXTENSIONS.putIfAbsent(id,value)!=null)throw new IllegalStateException("Duplicate extension: "+id);
+        value.add("capabilities",JSON.toJsonTree(capabilities.isBlank()?List.of():Arrays.asList(capabilities.split(","))));JsonObject previous=EXTENSIONS.putIfAbsent(id,value);if(previous!=null){synchronized(previous){JsonObject metadata=previous.deepCopy();metadata.remove("storage");if(!metadata.equals(value))throw new IllegalStateException("Conflicting extension metadata: "+id);}}
     }
     /** Register a versioned global/archive storage manifest before bridge hello. */
     public static void registerStorage(String extension,String manifestJson){

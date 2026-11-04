@@ -3,9 +3,10 @@ import { Plus, Trash, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { api, glyphs, hex, RichName, textOf } from './api';
 import { ColorField, Confirm, ErrorNotice, Modal, Select, Switch } from './ui';
 import { TitleHolders } from './TitleHolders';
+import { defaultPresentation, PresentationFields, validatePresentation } from './TitlePresentation';
 
 const segment = () => ({ text: '', color: 0xffffff, bold: false, italic: false, underline: false, strike: false });
-export const newTitle = () => ({ id: '', name: { segments: [segment()], gradients: [] }, description: '', source: '', acquisition: '', category: '纪念', order: 0, icon: 0, visible: true, issuable: true, revision: 0 });
+export const newTitle = () => ({ id: '', name: { segments: [segment()], gradients: [] }, description: '', source: '', acquisition: '', category: '纪念', order: 0, icon: 0, presentation: defaultPresentation(), visible: true, issuable: true, revision: 0 });
 function adjustGradients(groups, start, oldText, newText) {
   const a = Array.from(oldText), b = Array.from(newText);
   let prefix = 0, suffix = 0;
@@ -19,6 +20,7 @@ function validate(draft) {
   if (!chars.length || chars.length > 80 || draft.name.segments.length > 32) throw new Error('称号须为1–80个字符，最多32个文字段。');
   if (/[\u0000-\u001f\u007f§]/.test(chars.join(''))) throw new Error('称号不可包含控制字符或 §，请使用样式选项。');
   if (!Number.isInteger(Number(draft.icon)) || Number(draft.icon) < 0 || Number(draft.icon) > 2147483647) throw new Error('图标编号须为有效的非负整数。');
+  validatePresentation(draft.presentation);
   const used = new Set();
   if (draft.name.gradients.length > 16) throw new Error('最多16组渐变。');
   for (const group of draft.name.gradients) {
@@ -32,7 +34,7 @@ export function DisplayPreview({ title, settings }) {
   return <section className="preview-section"><div className="section-heading"><span>展示预览</span><span className="small-muted">网页示意</span></div><div className="name-preview"><span className="preview-label">头顶</span><div><span className="title-render" style={{ fontSize: 15 * (settings?.headScale ?? 1), marginBottom: (settings?.headOffset ?? 0.3) * 10 }}><RichName value={title.name} /></span><span className="player-name">Player</span></div></div><div className="inline-preview"><span className="preview-label">聊天</span><div>{parts.map((part, i) => <React.Fragment key={i}>{i > 0 && <RichName value={title.name} />}{part}</React.Fragment>)}<span className="player-name">&lt;Player&gt;</span> <span className="small-muted">大家好</span></div></div><div className="inline-preview"><span className="preview-label">TAB</span><div>[<RichName value={title.name} />] <span className="player-name">Player</span></div></div></section>;
 }
 export function TitleEditor({ title, close, saved, writable, settings, categories = [] }) {
-  const initial = useRef(JSON.stringify(title || {...newTitle(),source:settings?.packName || ''}));
+  const initial = useRef(JSON.stringify(title ? { ...title, presentation: { ...defaultPresentation(), ...title.presentation } } : {...newTitle(),source:settings?.packName || ''}));
   const [draft, setDraft] = useState(() => JSON.parse(initial.current));
   const [tab, setTab] = useState(0), [part, setPart] = useState(0), [gradient, setGradient] = useState(0);
   const [positions, setPositions] = useState(''), [error, setError] = useState(null), [busy, setBusy] = useState(false), [discard, setDiscard] = useState(false);
@@ -71,8 +73,10 @@ export function TitleEditor({ title, close, saved, writable, settings, categorie
         <label>称号名称{draft.name.segments.length === 1 ? <input value={selectedPart.text} required maxLength={160} onChange={e => editPart('text', e.target.value)} placeholder="例如：山海同行者" /> : <div className="readonly-value"><RichName value={draft.name} /><button className="sample-link" type="button" onClick={() => setTab(1)}>编辑分段文字</button></div>}</label>
         <label>称号说明<textarea rows={3} maxLength={2048} value={draft.description} onChange={e => set('description', e.target.value)} /></label>
         <div className="form-columns"><label>来源 / 整合包<input value={draft.source} maxLength={256} onChange={e => set('source', e.target.value)} /></label><div className="field-group"><span className="field-label">分类</span><Select label="分类" editable value={draft.category} onChange={value => set('category',value)} options={[...new Set(['纪念',...categories])].filter(Boolean).map(value => ({value,label:value}))} disabled={busy || !writable}/></div></div>
+        <label>获取说明<textarea rows={2} maxLength={512} value={draft.acquisition} onChange={e => set('acquisition', e.target.value)} /></label>
         <label>图标编号<input type="number" step="1" min="0" max="2147483647" value={draft.icon} onChange={e => set('icon', e.target.value)} required /></label>
         <p className="field-help">图标编号对应客户端资源包的 CustomModelData；未配置美术时使用命名牌。</p>
+        <PresentationFields title={draft} onChange={value => set('presentation', value)} disabled={busy || !writable}/>
         <Switch label="图鉴公开" description="尚未获得该称号的玩家可以在图鉴中查看。" value={draft.visible} onChange={v => set('visible', v)} />
         <Switch label="是否绝版" description="开启后停止发放，原持有者仍可佩戴；游戏内以金色标注已绝版。" value={!draft.issuable} onChange={v => set('issuable', !v)} />
       </div>}

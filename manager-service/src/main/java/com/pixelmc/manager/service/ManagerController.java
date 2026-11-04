@@ -43,7 +43,7 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     store=new ManagerStore(config.database());platform=new PlatformStore(store);try{store.migrate();platform.migrate();}catch(Exception unavailable){maintenanceError="Manager数据库暂不可用，自动重连中";}
     titles=config.titlesEnabled()?new TitleService(new cn.pixelmc.memorialtitles.persistence.Database(config.titlesDatabase())):null;
     fortunes=config.fortunesEnabled()?new FortuneBackend(config.fortunesDatabase().url(),config.fortunesDatabase().user(),config.fortunesDatabase().password(),data.resolve("dailyfortunes")):null;
-    if(titles!=null){if(config.unified())titles.attachPlatform(platformHook("memorialtitles"));titlesAdapter=new TitlesPlatformAdapter(titles,platformHook("memorialtitles"));if(!config.unified())titles.attachPlatform(null);titles.listen(s->{titleRevision.incrementAndGet();int prior=observedTitleRetention.getAndSet(s.settings().retentionDays());if(prior>=0&&prior!=s.settings().retentionDays())try{platform.retention(s.settings().retentionDays(),"titles-settings-compatibility");}catch(Exception e){maintenanceError="平台备份保留策略保存失败";}mirror();});}
+    if(titles!=null){titles.attachHubAdmission(id->online().contains(id));if(config.unified())titles.attachPlatform(platformHook("memorialtitles"));titlesAdapter=new TitlesPlatformAdapter(titles,platformHook("memorialtitles"));if(!config.unified())titles.attachPlatform(null);titles.listen(s->{titleRevision.incrementAndGet();int prior=observedTitleRetention.getAndSet(s.settings().retentionDays());if(prior>=0&&prior!=s.settings().retentionDays())try{platform.retention(s.settings().retentionDays(),"titles-settings-compatibility");}catch(Exception e){maintenanceError="平台备份保留策略保存失败";}mirror();});}
     if(config.unified()&&fortunes!=null)fortunes.attachPlatform(platformHook("dailyfortunes"));
     try{if(config.unified())initializePlatform();else{if(titles!=null)platform.register("memorialtitles",moduleManifest("memorialtitles",TitlesPlatformAdapter.storageManifest()));if(fortunes!=null)platform.register("dailyfortunes",moduleManifest("dailyfortunes",FortuneBackend.storageManifest()));platform.backfill();}}catch(Exception unavailable){maintenanceError="平台数据库暂不可用，等待自动重连";}
     if(config.titlesEnabled())try{titles.reconnect().get(15,TimeUnit.SECONDS);}catch(Exception unavailable){maintenanceError="称号数据库暂不可用，其他功能继续运行";}
@@ -79,14 +79,14 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     if(!auth.startsWith("Bearer ")||!store.authenticate(instance,auth.substring(7))){json(e,403,Map.of("error","桥接认证失败"));return true;}
     JsonObject b=body(e);
     moduleGate.readLock().lock();try{switch(path){
-      case "/bridge/capabilities"->json(e,200,Map.of("version","0.6.0","protocol",1,"titlesApi",3,"platformStorage",config.unified()?1:0,"titlesHealthy",titles!=null&&titles.healthy(),"fortunesEnabled",fortunes!=null));
+      case "/bridge/capabilities"->json(e,200,Map.of("version","0.6.2-hub.1","protocol",1,"titlesApi",3,"platformStorage",config.unified()?1:0,"titlesHealthy",titles!=null&&titles.healthy(),"fortunesEnabled",fortunes!=null));
       case "/bridge/hello"->{JsonObject response=store.hello(instance,b);registerGameModules(instance,object(b,"info"));response.addProperty("publicUrl",config.publicUrl());response.addProperty("protocol",1);response.addProperty("platformStorage",config.unified()?1:0);json(e,200,response);}
       case "/bridge/snapshot"->{JsonObject response=store.ingest(instance,b);if(response.has("accepted")&&response.get("accepted").getAsBoolean()){
         registerGameModules(instance,object(b,"snapshot"));Set<UUID> players=new HashSet<>();for(JsonElement raw:array(b,"players",2000)){JsonObject p=raw.getAsJsonObject();if(!bool(p,"fake",false))players.add(UUID.fromString(text(p,"id",36)));}
         Presence before=presence.put(instance,new Presence(Set.copyOf(players),bool(b,"stopped",false)?0:System.currentTimeMillis()+10000));
         if(web!=null){if(before!=null)for(UUID id:before.players())if(!players.contains(id))web.avatars.logout(id);for(JsonElement raw:array(b,"logins",512)){UUID id=UUID.fromString(text(raw.getAsJsonObject(),"uuid",36));if(players.contains(id))web.avatars.login(id);}}
       }json(e,200,response);}
-      case "/bridge/rpc"->{String module=text(b,"extension",64);if(text(b,"op",64).equals("platform")){if(!gameNamespaces.getOrDefault(instance,Set.of()).contains(module))throw new SecurityException("Extension not registered for this instance");JsonObject result=new JsonObject();JsonObject payload=object(b,"data");if(text(payload,"op",64).equals("avatars.upload")){UUID player=UUID.fromString(text(payload,"player",36));if(!admitted(instance).contains(player)||!player.toString().equals(text(b,"playerProof",36)))throw new SecurityException("Client avatar requires current admission proof");}result.add("result",platformHook(module).apply(payload));json(e,200,result);}else if(module.equals("dailyfortunes"))json(e,200,fortuneRpc(instance,b));else if(module.equals("memorialtitles"))json(e,200,titleRpc(instance,b));else throw new IllegalArgumentException("Extension RPC not registered");}
+      case "/bridge/rpc"->{String module=text(b,"extension",64);if(text(b,"op",64).equals("platform")){if(!gameNamespaces.getOrDefault(instance,Set.of()).contains(module))throw new SecurityException("Extension not registered for this instance");JsonObject result=new JsonObject();JsonObject payload=object(b,"data");if(text(payload,"op",64).equals("avatars.upload")){UUID player=UUID.fromString(text(payload,"player",36));if(!admitted(instance).contains(player)||!player.toString().equals(text(b,"playerProof",36)))throw new SecurityException("Client avatar requires current admission proof");}result.add("result",platformHook(module).apply(payload));json(e,200,result);}else if(module.equals("dailyfortunes")||module.equals("memorialtitles")){JsonObject response=module.equals("dailyfortunes")?fortuneRpc(instance,b):titleRpc(instance,b);if(text(b,"op",64).equals("playerHub"))playerJson(e,200,response);else json(e,200,response);}else throw new IllegalArgumentException("Extension RPC not registered");}
       default->json(e,404,Map.of("error","桥接路由不存在"));
     }}finally{moduleGate.readLock().unlock();}
     return true;
@@ -105,6 +105,17 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
       Object result;
       if(op.equals("backendBackup")){result=backup(cn.pixelmc.memorialtitles.domain.Model.JSON.fromJson(args.get(0),TitleService.Actor.class)).get(30,TimeUnit.SECONDS).toString();}
       else if(op.equals("backendReload")){reload(cn.pixelmc.memorialtitles.domain.Model.JSON.fromJson(args.get(0),TitleService.Actor.class)).get(30,TimeUnit.SECONDS);result=null;}
+      else if(op.equals("playerHub")){
+        if(args.size()!=3 || !args.get(0).isJsonPrimitive() || !args.get(0).getAsJsonPrimitive().isString()
+            || !args.get(1).isJsonPrimitive() || !args.get(1).getAsJsonPrimitive().isString() || !args.get(2).isJsonObject())
+          throw new IllegalArgumentException("玩家称号请求参数无效");
+        UUID player=UUID.fromString(args.get(0).getAsString());String action=args.get(1).getAsString();
+        if(!player.toString().equals(text(b,"playerProof",36))||!admitted(instance).contains(player))
+          throw new SecurityException("只接受已入服玩家本人的称号请求");
+        if(!Set.of("snapshot","catalogue","equip","visibility","displayPreferences").contains(action))
+          throw new IllegalArgumentException("玩家称号操作未注册");
+        result=titles.playerHub(player,action,args.get(2).getAsJsonObject()).get(30,TimeUnit.SECONDS);
+      }
       else if(op.equals("avatarUpload")){
         UUID player=UUID.fromString(args.get(0).getAsString());if(!online().contains(player))throw new SecurityException("玩家不在线");
         web.avatars.uploadFallback(player,args.get(1).getAsString(),args.get(2).getAsString());result=null;
@@ -127,12 +138,12 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
       response.add("result",cn.pixelmc.memorialtitles.domain.Model.JSON.toJsonTree(result));
     }catch(Exception error){Throwable cause=error;while(cause.getCause()!=null&&(cause instanceof ExecutionException||cause instanceof java.lang.reflect.InvocationTargetException))cause=cause.getCause();response.addProperty("error",cause instanceof java.sql.SQLException?"称号数据库暂不可用":Objects.toString(cause.getMessage(),"扩展操作失败"));}
     response.addProperty("healthy",titles.healthy());String revision=boot+":"+titleRevision.get();response.addProperty("revision",revision);
-    if(!revision.equals(text(request,"revision",128)))response.add("snapshot",cn.pixelmc.memorialtitles.domain.Model.JSON.toJsonTree(SnapshotTransfer.of(titles.snapshot())));
+    if(!op.equals("playerHub")&&!revision.equals(text(request,"revision",128)))response.add("snapshot",cn.pixelmc.memorialtitles.domain.Model.JSON.toJsonTree(SnapshotTransfer.of(titles.snapshot())));
     return response;
   }
   private String instance(Map<String,String> q)throws Exception{String id=q.getOrDefault("instance","");if(!id.isBlank())return Wire.id(id);var all=store.instances();return all.isEmpty()?"":all.get(0).get("id").getAsString();}
   private JsonObject bootstrap(String instance,String archive)throws Exception{
-    JsonObject out=new JsonObject();out.addProperty("version","0.6.0");out.add("instances",JSON.toJsonTree(store.instances()));
+    JsonObject out=new JsonObject();out.addProperty("version","0.6.2-hub.1");out.add("instances",JSON.toJsonTree(store.instances()));
     out.add("archives",JSON.toJsonTree(instance.isBlank()?List.of():store.archives(instance)));
     JsonObject state=instance.isBlank()?new JsonObject():store.state(instance,archive);avatars(state);out.add("state",state);out.addProperty("databaseHealthy",true);out.add("extensions",extensions());
     out.addProperty("titleRevision",boot+":"+titleRevision.get());out.addProperty("maintenanceError",maintenanceError);out.addProperty("lastBackup",lastBackup);return out;
@@ -157,7 +168,7 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     JsonArray rules=new JsonArray();if(namespace.equals("memorialtitles")){
       for(String table:List.of("mt_players","mt_owned","mt_equipped","mt_receipts","mt_admins","mt_notifications","mt_display_preferences"))rules.add(cleanupRule(table,table.equals("mt_players")?"uuid":"player",false));
       for(String column:List.of("actor","target"))rules.add(cleanupRule("mt_audit",column,false));rules.add(cleanupRule("mt_cell_versions","cell_key",true));rules.add(cleanupRule("mt_changes","payload",true));
-    }else if(namespace.equals("dailyfortunes")){rules.add(cleanupRule("df_players","uuid",false));rules.add(cleanupRule("df_records","player",false));rules.add(cleanupRule("df_requests","player",false));rules.add(cleanupRule("df_audit","payload",true));}
+    }else if(namespace.equals("dailyfortunes")){rules.add(cleanupRule("df_players","uuid",false));rules.add(cleanupRule("df_records","player",false));rules.add(cleanupRule("df_requests","player",false));rules.add(cleanupRule("df_hub_preferences","player",false));rules.add(cleanupRule("df_audit","payload",true));}
     manifest.add("playerTables",rules);return manifest;
   }
   private static JsonObject cleanupRule(String table,String column,boolean contains){JsonObject rule=new JsonObject();rule.addProperty("table",table);rule.addProperty("column",column);rule.addProperty("contains",contains);return rule;}

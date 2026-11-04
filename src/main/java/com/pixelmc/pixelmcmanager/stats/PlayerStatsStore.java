@@ -42,6 +42,10 @@ public final class PlayerStatsStore {
     private final Logger logger;
     private final Map<UUID, PlayerStats> players = new LinkedHashMap<>();
     private final Map<UUID, Long> lastAccountedMillis = new HashMap<>();
+    private final Map<UUID, HubSession> hubSessions = new HashMap<>();
+    private long hubSessionSequence;
+    private record HubSession(long previousLoginAt, long sequence) { }
+    public record HubSnapshot(PlayerStats stats, long previousLoginAt, long session) { }
     private Path dataFile;
     private boolean loaded = false;
 
@@ -50,6 +54,7 @@ public final class PlayerStatsStore {
     }
 
     public synchronized void load(MinecraftServer server) {
+        hubSessions.clear();
         // LevelResource.ROOT resolves inside the active save root, the directory that owns level.dat.
         Path worldRoot = server.getWorldPath(LevelResource.ROOT);
         Path nextDataFile = worldRoot.resolve(DATA_DIR).resolve("player_stats.json");
@@ -110,7 +115,10 @@ public final class PlayerStatsStore {
     }
 
     public synchronized PlayerLoginSnapshot recordLogin(ServerPlayer player, long nowMillis) {
-        UUID uuid = player.getUUID();
+        return recordLogin(player.getUUID(), player.getGameProfile().getName(), nowMillis);
+    }
+
+    public synchronized PlayerLoginSnapshot recordLogin(UUID uuid, String name, long nowMillis) {
         PlayerStats stats = players.computeIfAbsent(uuid, ignored -> {
             PlayerStats created = new PlayerStats();
             created.firstJoinEpochMillis = nowMillis;
@@ -119,14 +127,27 @@ public final class PlayerStatsStore {
 
         boolean firstJoin = stats.joinCount == 0;
         long previousLastJoin = stats.lastJoinEpochMillis;
-        if (stats.firstJoinEpochMillis <= 0L) {
+        if (stats.firstJoinEpochMillis <= 0L && firstJoin && previousLastJoin <= 0L) {
             stats.firstJoinEpochMillis = nowMillis;
         }
-        stats.name = player.getGameProfile().getName();
+        stats.name = name;
         stats.joinCount++;
         stats.lastJoinEpochMillis = nowMillis;
         lastAccountedMillis.put(uuid, nowMillis);
+        hubSessions.put(uuid, new HubSession(Math.max(0, previousLastJoin), ++hubSessionSequence));
         return new PlayerLoginSnapshot(stats.copy(), firstJoin, previousLastJoin);
+    }
+
+    /** Own admitted session only; read-only wall-clock checkpoint without disk access. */
+    public synchronized HubSnapshot hubSnapshot(UUID uuid, long nowMillis) {
+        HubSession session = hubSessions.get(uuid);
+        PlayerStats value = players.get(uuid);
+        if (session == null || value == null || !lastAccountedMillis.containsKey(uuid)) return null;
+        PlayerStats copy = value.copy();
+        long elapsed = uncheckpointedMillis(uuid, nowMillis);
+        copy.totalOnlineMillis = elapsed > Long.MAX_VALUE - Math.max(0, copy.totalOnlineMillis)
+                ? Long.MAX_VALUE : Math.max(0, copy.totalOnlineMillis) + elapsed;
+        return new HubSnapshot(copy, session.previousLoginAt(), session.sequence());
     }
 
     public synchronized void recordLogout(ServerPlayer player, long nowMillis) {
@@ -197,6 +218,7 @@ public final class PlayerStatsStore {
     }
 
     private void settleSession(UUID uuid, long nowMillis) {
+        hubSessions.remove(uuid);
         accountOnlineTime(uuid, nowMillis, true);
     }
 

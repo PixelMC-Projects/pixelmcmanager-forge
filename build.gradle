@@ -175,6 +175,7 @@ tasks.register('buildManagerWeb', Exec) {
 tasks.named('processManagerServiceResources').configure {
     dependsOn 'buildManagerWeb'
     from('web-console/dist/client') { into 'web' }
+    from(new File(titlesRoot, 'web-console/src/titlePresentationPresets.json'))
     from(new File(fortunesRoot, 'src/main/resources/defaults')) { into 'defaults' }
 }
 tasks.register('managerServiceJar', Jar) {
@@ -231,3 +232,17 @@ tasks.register('platformIntegrationTest', JavaExec) {
     classpath = sourceSets.managerChecks.runtimeClasspath
     mainClass = 'com.pixelmc.manager.service.PlatformChecks'
 }
+
+// Own-player API checks use class loading only, without starting Minecraft.
+sourceSets.restartChecks.compileClasspath += sourceSets.main.compileClasspath
+tasks.register('playerHubLogicTest', JavaExec) {
+    dependsOn restartChecksClasses
+    classpath = sourceSets.restartChecks.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.pixelmc.pixelmcmanager.api.PlayerHubLogicTest'
+}
+tasks.named('check').configure { dependsOn 'playerHubLogicTest' }
+
+tasks.register("playerHubBridgeTest",JavaExec) { dependsOn "managerChecksClasses"; classpath=sourceSets.managerChecks.runtimeClasspath; mainClass="com.pixelmc.manager.service.PlayerHubBridgeChecks" }
+
+tasks.register("bridgeRuntimeLifecycleTest", JavaExec) { dependsOn restartChecksClasses; classpath=sourceSets.restartChecks.runtimeClasspath + sourceSets.main.compileClasspath; mainClass="com.pixelmc.pixelmcmanager.bridge.BridgeRuntimeLifecycleTest" }
+tasks.named("check").configure { dependsOn "bridgeRuntimeLifecycleTest" }
