@@ -20,7 +20,7 @@ export function Modal({ title, subtitle, close, children, footer, wide = false, 
       if (modalStack.at(-1) !== panel) return;
       if (event.key === 'Escape') { event.preventDefault(); if (!latest.current.busy) latest.current.close(); }
       if (event.key === 'Tab') {
-        const selector = 'button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]';
+        const selector = 'button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[contenteditable="true"],a[href],[tabindex="0"]';
         const items = [...ref.current.querySelectorAll(selector),...document.querySelectorAll('.themed-popup button:not(:disabled),.themed-popup input:not(:disabled),.themed-popup [tabindex="0"]')].filter(el => el.getClientRects().length && el.tabIndex >= 0);
         if (!items.length) { event.preventDefault(); return; }
         if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1).focus(); }
@@ -37,7 +37,7 @@ export function Modal({ title, subtitle, close, children, footer, wide = false, 
   }, []);
   return <div className={`overlay ${drawer ? '' : 'center-overlay'}`} onMouseDown={event => { if (event.target === event.currentTarget && !busy) close(); }}><section ref={ref} className={`editor ${drawer ? '' : 'dialog-card'} ${wide ? 'wide-editor' : ''}`} role="dialog" aria-modal="true" aria-labelledby={headingId}><header className="editor-header"><div><span className="eyebrow">{subtitle || 'MemorialTitles'}</span><h2 id={headingId}>{title}</h2></div><IconButton icon={X} label="关闭面板" disabled={busy} onClick={close} /></header>{children}{footer && <footer className="editor-footer">{footer}</footer>}</section></div>;
 }
-export function Confirm({ title, children, confirm, cancel, busy, danger = false, label = '确认' }) { return <Modal title={title} close={cancel} drawer={false} busy={busy} footer={<><button className="button secondary" disabled={busy} onClick={cancel}>取消</button><button className={`button ${danger ? 'danger' : 'primary'}`} disabled={busy} onClick={confirm}>{busy ? '正在处理…' : label}</button></>}><div className="editor-body confirm-copy">{children}</div></Modal>; }
+export function Confirm({ title, subtitle, children, confirm, cancel, busy, danger = false, label = '确认' }) { return <Modal title={title} subtitle={subtitle} close={cancel} drawer={false} busy={busy} footer={<><button className="button secondary" disabled={busy} onClick={cancel}>取消</button><button className={`button ${danger ? 'danger' : 'primary'}`} disabled={busy} onClick={confirm}>{busy ? '正在处理…' : label}</button></>}><div className="editor-body confirm-copy">{children}</div></Modal>; }
 export function useFloating(open, close, width) {
   const anchor = useRef(null), panel = useRef(null), [position, setPosition] = useState({});
   const latest = useRef(close); latest.current = close;

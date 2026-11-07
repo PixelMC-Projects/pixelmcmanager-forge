@@ -37,7 +37,7 @@ export function PlayerRoster({telemetry:t,inspect}) {
       </button>)}
       {!rows.length&&<div className="empty-state"><MagnifyingGlass size={24} weight="light"/><h3>没有匹配的结果</h3><p>尝试其他玩家名或 UUID。</p></div>}
     </section>
-    <p className="quiet-note">{remote.error|| (tab==='fakes'?'假人不计入真人档案或累计登录。':'当前整合包的累计统计；成功入服后才登记，离线头像保留。')}</p>
+    <p className="quiet-note">{remote.error|| (tab==='fakes'?'假人不计入真人档案或累计登录。':t.historical?'所选历史档案的累计统计；玩家与登录记录按档案查询。':'当前整合包的累计统计；成功入服后才登记，离线头像保留。')}</p>
     {tab!=='fakes'&&<div className="dimension-list-footer"><span>共 {remote.data?.total??0} 人 · 每页50人</span><div><button className="button secondary" disabled={page===0} onClick={()=>setPage(n=>n-1)}>上一页</button><span>{page+1}</span><button className="button secondary" disabled={(page+1)*50>=(remote.data?.total??0)} onClick={()=>setPage(n=>n+1)}>下一页</button></div></div>}
   </div></div>;
 }

@@ -23,6 +23,9 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   public final Path data;
   public PlatformWebServer web;
   public final PlatformStore platform;
+  public final PlayerHubUpdatesStore updates;
+  public final PlayerHubRankingsStore rankings;
+  public final PlayerHubCommunityStore community;
   private TitlesPlatformAdapter titlesAdapter;
   private final Map<String,JsonObject> gameModules=new ConcurrentHashMap<>();
   private final Map<String,Set<String>> gameNamespaces=new ConcurrentHashMap<>();
@@ -40,17 +43,17 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   private final Map<String,long[]> limits=new HashMap<>();
   public ManagerController(ServiceConfig config,Path data)throws Exception{
     this.config=config;this.data=data;Files.createDirectories(data);
-    store=new ManagerStore(config.database());platform=new PlatformStore(store);try{store.migrate();platform.migrate();}catch(Exception unavailable){maintenanceError="Manager数据库暂不可用，自动重连中";}
+    store=new ManagerStore(config.database());platform=new PlatformStore(store);updates=new PlayerHubUpdatesStore(store);rankings=new PlayerHubRankingsStore(store);community=new PlayerHubCommunityStore(store);store.rankings(rankings);try{store.migrate();platform.migrate();if(config.unified()){updates.migrate();}}catch(Exception unavailable){maintenanceError="Manager数据库暂不可用，自动重连中";}
     titles=config.titlesEnabled()?new TitleService(new cn.pixelmc.memorialtitles.persistence.Database(config.titlesDatabase())):null;
     fortunes=config.fortunesEnabled()?new FortuneBackend(config.fortunesDatabase().url(),config.fortunesDatabase().user(),config.fortunesDatabase().password(),data.resolve("dailyfortunes")):null;
-    if(titles!=null){titles.attachHubAdmission(id->online().contains(id));if(config.unified())titles.attachPlatform(platformHook("memorialtitles"));titlesAdapter=new TitlesPlatformAdapter(titles,platformHook("memorialtitles"));if(!config.unified())titles.attachPlatform(null);titles.listen(s->{titleRevision.incrementAndGet();int prior=observedTitleRetention.getAndSet(s.settings().retentionDays());if(prior>=0&&prior!=s.settings().retentionDays())try{platform.retention(s.settings().retentionDays(),"titles-settings-compatibility");}catch(Exception e){maintenanceError="平台备份保留策略保存失败";}mirror();});}
+    if(titles!=null){titles.attachHubAdmission(id->online().contains(id));if(config.unified())titles.attachPlatform(platformHook("memorialtitles"));titlesAdapter=new TitlesPlatformAdapter(titles,platformHook("memorialtitles"));if(!config.unified())titles.attachPlatform(null);titles.listen(s->{titleRevision.incrementAndGet();community.changed();int prior=observedTitleRetention.getAndSet(s.settings().retentionDays());if(prior>=0&&prior!=s.settings().retentionDays())try{platform.retention(s.settings().retentionDays(),"titles-settings-compatibility");}catch(Exception e){maintenanceError="平台备份保留策略保存失败";}mirror();});}
     if(config.unified()&&fortunes!=null)fortunes.attachPlatform(platformHook("dailyfortunes"));
     try{if(config.unified())initializePlatform();else{if(titles!=null)platform.register("memorialtitles",moduleManifest("memorialtitles",TitlesPlatformAdapter.storageManifest()));if(fortunes!=null)platform.register("dailyfortunes",moduleManifest("dailyfortunes",FortuneBackend.storageManifest()));platform.backfill();}}catch(Exception unavailable){maintenanceError="平台数据库暂不可用，等待自动重连";}
     if(config.titlesEnabled())try{titles.reconnect().get(15,TimeUnit.SECONDS);}catch(Exception unavailable){maintenanceError="称号数据库暂不可用，其他功能继续运行";}
     try{JsonObject state=JsonParser.parseString(Files.readString(data.resolve("maintenance.json"))).getAsJsonObject();lastBackup=state.get("lastBackup").getAsLong();}catch(Exception ignored){}
     nextBackup=lastBackup>0?Math.max(System.currentTimeMillis(),lastBackup+12*ManagerStore.HOUR):System.currentTimeMillis()+12*ManagerStore.HOUR;
   }
-  public void startMaintenance(){tasks.scheduleWithFixedDelay(()->{try{store.migrate();platform.migrate();if(config.unified()&&!platformReady)initializePlatform();store.cleanup(System.currentTimeMillis());maintenanceError="";}catch(Exception e){maintenanceError="性能清理暂未完成";}},1,300,TimeUnit.SECONDS);
+  public void startMaintenance(){tasks.scheduleWithFixedDelay(()->{try{store.migrate();platform.migrate();if(config.unified()){updates.migrate();}if(config.unified()&&!platformReady)initializePlatform();store.cleanup(System.currentTimeMillis());maintenanceError="";}catch(Exception e){maintenanceError="性能清理暂未完成";}},1,300,TimeUnit.SECONDS);
     tasks.scheduleWithFixedDelay(()->{try{if(config.titlesEnabled())try{titles.reconnect().get(15,TimeUnit.SECONDS);}catch(Exception unavailable){maintenanceError="称号数据库暂不可用，其他功能继续运行";}syncPack();if(System.currentTimeMillis()>=nextBackup){backupAll();nextBackup=System.currentTimeMillis()+12*ManagerStore.HOUR;}}catch(Exception e){maintenanceError="数据维护或备份失败，请检查服务日志";nextBackup=Math.max(nextBackup,System.currentTimeMillis()+60000);}},15,30,TimeUnit.SECONDS);
   }
   private void syncPack()throws Exception{if(!config.titlesEnabled()||!titles.healthy())return;var instances=store.instances().stream().filter(i->!i.get("archiveId").isJsonNull()).toList();if(instances.size()!=1)return;var archive=store.archiveInfo(instances.get(0).get("archiveId").getAsString());var old=titles.snapshot().settings();String name=archive.get("name").getAsString()+(archive.get("version").getAsString().isBlank()?"":" "+archive.get("version").getAsString());String date=archive.get("startedOn").getAsString();if(!old.packName().equals(name)||!old.packStartedOn().equals(date))titles.settings(TitleService.Actor.consoleActor(),new Settings(old.reward(),old.head(),old.chat(),old.tab(),old.headScale(),old.headOffset(),old.chatPrefix(),old.retentionDays(),name,date)).get(5,TimeUnit.SECONDS);}
@@ -79,22 +82,84 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     if(!auth.startsWith("Bearer ")||!store.authenticate(instance,auth.substring(7))){json(e,403,Map.of("error","桥接认证失败"));return true;}
     JsonObject b=body(e);
     moduleGate.readLock().lock();try{switch(path){
-      case "/bridge/capabilities"->json(e,200,Map.of("version","0.6.2-hub.1","protocol",1,"titlesApi",3,"platformStorage",config.unified()?1:0,"titlesHealthy",titles!=null&&titles.healthy(),"fortunesEnabled",fortunes!=null));
-      case "/bridge/hello"->{JsonObject response=store.hello(instance,b);registerGameModules(instance,object(b,"info"));response.addProperty("publicUrl",config.publicUrl());response.addProperty("protocol",1);response.addProperty("platformStorage",config.unified()?1:0);json(e,200,response);}
-      case "/bridge/snapshot"->{JsonObject response=store.ingest(instance,b);if(response.has("accepted")&&response.get("accepted").getAsBoolean()){
+      case "/bridge/capabilities"->json(e,200,bridgeCapabilities());
+      case "/bridge/hello"->{JsonObject response=store.hello(instance,b);registerGameModules(instance,object(b,"info"));if(config.unified()){updates.syncPacks();community.changed();}response.addProperty("playerHubApi",config.unified()?1:0);response.addProperty("communityApi",config.unified()?1:0);response.addProperty("leaderboardsApi",config.unified()?1:0);response.addProperty("communityRevision",community.revision());response.addProperty("playerHubRevision",updates.revision());response.addProperty("leaderboardsRevision",rankings.revision());response.add("leaderboardsRevisions",rankings.revisions());response.addProperty("publicUrl",config.publicUrl());response.addProperty("protocol",1);response.addProperty("platformStorage",config.unified()?1:0);json(e,200,response);}
+      case "/bridge/snapshot"->{JsonObject response=store.ingest(instance,b);if(response.has("accepted")&&response.get("accepted").getAsBoolean()){int rankingMask=(int)number(response,"rankingsMask",0,0,7);if(rankingMask!=0)rankings.changed(rankingMask);if(b.has("logins")&&!b.getAsJsonArray("logins").isEmpty())community.changed();
         registerGameModules(instance,object(b,"snapshot"));Set<UUID> players=new HashSet<>();for(JsonElement raw:array(b,"players",2000)){JsonObject p=raw.getAsJsonObject();if(!bool(p,"fake",false))players.add(UUID.fromString(text(p,"id",36)));}
         Presence before=presence.put(instance,new Presence(Set.copyOf(players),bool(b,"stopped",false)?0:System.currentTimeMillis()+10000));
         if(web!=null){if(before!=null)for(UUID id:before.players())if(!players.contains(id))web.avatars.logout(id);for(JsonElement raw:array(b,"logins",512)){UUID id=UUID.fromString(text(raw.getAsJsonObject(),"uuid",36));if(players.contains(id))web.avatars.login(id);}}
-      }json(e,200,response);}
-      case "/bridge/rpc"->{String module=text(b,"extension",64);if(text(b,"op",64).equals("platform")){if(!gameNamespaces.getOrDefault(instance,Set.of()).contains(module))throw new SecurityException("Extension not registered for this instance");JsonObject result=new JsonObject();JsonObject payload=object(b,"data");if(text(payload,"op",64).equals("avatars.upload")){UUID player=UUID.fromString(text(payload,"player",36));if(!admitted(instance).contains(player)||!player.toString().equals(text(b,"playerProof",36)))throw new SecurityException("Client avatar requires current admission proof");}result.add("result",platformHook(module).apply(payload));json(e,200,result);}else if(module.equals("dailyfortunes")||module.equals("memorialtitles")){JsonObject response=module.equals("dailyfortunes")?fortuneRpc(instance,b):titleRpc(instance,b);if(text(b,"op",64).equals("playerHub"))playerJson(e,200,response);else json(e,200,response);}else throw new IllegalArgumentException("Extension RPC not registered");}
+      }response.addProperty("communityRevision",community.revision());response.addProperty("playerHubRevision",updates.revision());response.addProperty("leaderboardsRevision",rankings.revision());response.add("leaderboardsRevisions",rankings.revisions());json(e,200,response);}
+      case "/bridge/rpc"->{String module=text(b,"extension",64);if(text(b,"op",64).equals("platform")){if(!gameNamespaces.getOrDefault(instance,Set.of()).contains(module))throw new SecurityException("Extension not registered for this instance");JsonObject result=new JsonObject();JsonObject payload=object(b,"data");if(text(payload,"op",64).equals("avatars.upload")){UUID player=UUID.fromString(text(payload,"player",36));if(!admitted(instance).contains(player)||!player.toString().equals(text(b,"playerProof",36)))throw new SecurityException("Client avatar requires current admission proof");}result.add("result",platformHook(module).apply(payload));json(e,200,result);}else if(module.equals("playerhub")){playerJson(e,200,text(b,"op",64).equals("community")?communityRpc(instance,b):text(b,"op",64).equals("rankingsBatch")?rankingsBatchRpc(instance,b):text(b,"op",64).equals("rankings")?rankingsRpc(instance,b):updatesRpc(instance,b));}else if(module.equals("dailyfortunes")||module.equals("memorialtitles")){JsonObject response=module.equals("dailyfortunes")?fortuneRpc(instance,b):titleRpc(instance,b);if(text(b,"op",64).equals("playerHub"))playerJson(e,200,response);else json(e,200,response);}else throw new IllegalArgumentException("Extension RPC not registered");}
       default->json(e,404,Map.of("error","桥接路由不存在"));
     }}finally{moduleGate.readLock().unlock();}
     return true;
   }
+  private JsonObject bridgeCapabilities(){
+    JsonObject out=new JsonObject();out.addProperty("version","0.9.0-dev");out.addProperty("protocol",1);
+    out.addProperty("titlesApi",3);out.addProperty("platformStorage",config.unified()?1:0);
+    out.addProperty("titlesHealthy",titles!=null&&titles.healthy());out.addProperty("fortunesEnabled",fortunes!=null);
+    out.addProperty("playerHubApi",config.unified()?1:0);out.addProperty("leaderboardsApi",config.unified()?1:0);
+    out.addProperty("communityApi",config.unified()?1:0);return out;
+  }
+  private static boolean communityFeatureWrite(JsonObject request){
+    JsonArray args=object(request,"data").getAsJsonArray("args");
+    return args!=null&&args.size()>1&&args.get(1).isJsonPrimitive()&&args.get(1).getAsString().equals("feature");
+  }
+  private JsonObject communityRpc(String instance,JsonObject request){
+    JsonObject response=new JsonObject();
+    try{
+      if(!config.unified())throw new IllegalStateException("社区功能需要统一平台存储");
+      JsonArray args=array(object(request,"data"),"args",3);
+      if(args.size()!=3||!args.get(2).isJsonObject())throw new IllegalArgumentException("社区请求格式无效");
+      UUID player=UUID.fromString(args.get(0).getAsString());
+      if(!player.toString().equals(text(request,"playerProof",36))||!admitted(instance).contains(player))throw new SecurityException("玩家会话已失效");
+      response.add("result",community.player(instance,player,args.get(1).getAsString(),args.get(2).getAsJsonObject(),titles,fortunes));
+      if(!admitted(instance).contains(player))throw new SecurityException("玩家会话已失效");
+    }catch(SecurityException|IllegalArgumentException|IllegalStateException error){response=new JsonObject();response.addProperty("error",Objects.toString(error.getMessage(),"社区操作未完成"));}
+    catch(Exception unavailable){response=new JsonObject();response.addProperty("error","社区数据暂不可用，请稍后重试");}
+    return response;
+  }
+  private JsonObject rankingsBatchRpc(String instance,JsonObject request) {
+    JsonArray batch=array(object(request,"data"),"requests",32);
+    if(batch.isEmpty())throw new IllegalArgumentException("排行批量请求不能为空");
+    JsonArray results=new JsonArray();
+    for(JsonElement item:batch) {
+      if(!item.isJsonObject())throw new IllegalArgumentException("排行批量请求无效");
+      results.add(rankingsRpc(instance,item.getAsJsonObject()));
+    }
+    JsonObject response=new JsonObject();response.add("results",results);return response;
+  }
+  private JsonObject rankingsRpc(String instance,JsonObject request) {
+    JsonObject response=new JsonObject();
+    try {
+      if(!config.unified())throw new IllegalStateException("玩家排行需要统一平台存储");
+      JsonArray args=array(object(request,"data"),"args",3);
+      if(args.size()!=3 || !args.get(2).isJsonObject())throw new IllegalArgumentException("排行请求参数无效");
+      UUID player=UUID.fromString(uuid(args.get(0).getAsString()));
+      if(!player.toString().equals(text(request,"playerProof",36)) || !admitted(instance).contains(player))
+        throw new SecurityException("只接受当前已入服玩家的排行请求");
+      response.add("result",rankings.player(instance,player,args.get(1).getAsString(),args.get(2).getAsJsonObject(),fortunes));
+    } catch(Exception error) {
+      response.addProperty("error",error instanceof IllegalArgumentException || error instanceof IllegalStateException || error instanceof SecurityException
+          ? Objects.toString(error.getMessage(),"排行请求未完成") : "排行数据暂不可用，请稍后重试");
+    }
+    return response;
+  }
+  private JsonObject updatesRpc(String instance,JsonObject b){
+    JsonObject response=new JsonObject();try{
+      if(!config.unified())throw new IllegalStateException("PlayerHub 更新日志需要统一平台存储");
+      if(!text(b,"op",64).equals("playerHub"))throw new SecurityException("玩家更新日志操作未注册");
+      JsonArray args=array(object(b,"data"),"args",3);
+      if(args.size()!=3||!args.get(0).isJsonPrimitive()||!args.get(0).getAsJsonPrimitive().isString()||!args.get(1).isJsonPrimitive()||!args.get(1).getAsJsonPrimitive().isString()||!args.get(2).isJsonObject())throw new IllegalArgumentException("玩家更新日志请求参数无效");
+      String player=uuid(args.get(0).getAsString());if(!player.equals(text(b,"playerProof",36))||!admitted(instance).contains(UUID.fromString(player)))throw new SecurityException("只接受已入服玩家本人的更新日志请求");
+      response.add("result",updates.player(instance,player,args.get(1).getAsString(),args.get(2).getAsJsonObject()));
+    }catch(Exception error){response.addProperty("error",error instanceof IllegalArgumentException||error instanceof IllegalStateException||error instanceof SecurityException?Objects.toString(error.getMessage(),"更新日志操作未完成"):"更新日志数据暂不可用，请稍后重试");}
+    response.addProperty("healthy",store.healthy());response.addProperty("revision",updates.revision());return response;
+  }
   private JsonObject fortuneRpc(String instance,JsonObject b)throws Exception{
     if(fortunes==null)throw new IllegalArgumentException("DailyFortunes 扩展未启用");
     Presence report=presence.get(instance);Set<UUID> admitted=report!=null&&report.until()>System.currentTimeMillis()?report.players():Set.of();
-    JsonObject response=new JsonObject();try{response=FortuneRpcResponse.success(fortunes.rpc(text(b,"op",64),object(b,"data"),text(b,"playerProof",36),admitted));}
+    JsonObject response=new JsonObject();try{response=FortuneRpcResponse.success(fortunes.rpc(text(b,"op",64),object(b,"data"),text(b,"playerProof",36),admitted));if(Set.of("archive","recover").contains(text(b,"op",64))||text(b,"op",64).equals("playerHub")&&communityFeatureWrite(b))community.changed();if(!text(b,"op",64).equals("playerHub"))rankings.fortuneChanged(UUID.fromString(text(b,"playerProof",36)));}
     catch(Exception error){response.addProperty("error",fortuneError(error));}response.addProperty("healthy",bool(fortunes.status(),"database",false));return response;
   }
   private static String fortuneError(Exception error){return error instanceof IllegalArgumentException||error instanceof IllegalStateException||error instanceof SecurityException?Objects.toString(error.getMessage(),"抽签操作未完成"):"抽签数据暂不可用，请稍后重试";}
@@ -143,15 +208,15 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   }
   private String instance(Map<String,String> q)throws Exception{String id=q.getOrDefault("instance","");if(!id.isBlank())return Wire.id(id);var all=store.instances();return all.isEmpty()?"":all.get(0).get("id").getAsString();}
   private JsonObject bootstrap(String instance,String archive)throws Exception{
-    JsonObject out=new JsonObject();out.addProperty("version","0.6.2-hub.1");out.add("instances",JSON.toJsonTree(store.instances()));
+    JsonObject out=new JsonObject();out.addProperty("version","0.9.0-dev");out.add("instances",JSON.toJsonTree(store.instances()));
     out.add("archives",JSON.toJsonTree(instance.isBlank()?List.of():store.archives(instance)));
     JsonObject state=instance.isBlank()?new JsonObject():store.state(instance,archive);avatars(state);out.add("state",state);out.addProperty("databaseHealthy",true);out.add("extensions",extensions());
-    out.addProperty("titleRevision",boot+":"+titleRevision.get());out.addProperty("maintenanceError",maintenanceError);out.addProperty("lastBackup",lastBackup);return out;
+    out.addProperty("communityRevision",community.revision());out.addProperty("communityApi",config.unified()?1:0);out.addProperty("playerHubRevision",updates.revision());out.addProperty("leaderboardsRevision",rankings.revision());out.add("leaderboardsRevisions",rankings.revisions());out.addProperty("titleRevision",boot+":"+titleRevision.get());out.addProperty("maintenanceError",maintenanceError);out.addProperty("lastBackup",lastBackup);return out;
   }
   private void avatars(JsonObject state){if(web==null)return;if(state.has("players"))for(JsonElement raw:state.getAsJsonArray("players")){JsonObject p=raw.getAsJsonObject();if(!bool(p,"fake",false)){UUID id=UUID.fromString(text(p,"id",36));long version=web.avatars.version(id);p.addProperty("avatarVersion",version);p.addProperty("avatarUrl","/api/manager/avatars/"+id+".png?v="+version);}}}
   private JsonArray extensions()throws Exception{
     JsonArray values=new JsonArray();for(JsonObject manifest:platform.modules()){
-      JsonObject value=manifest.deepCopy();String ns=text(value,"id",64);value.addProperty("registered",true);value.addProperty("enabled",ns.equals("memorialtitles")?titles!=null:ns.equals("dailyfortunes")?fortunes!=null:gameModules.containsKey(ns));value.addProperty("gameConnected",gameNamespaces.entrySet().stream().anyMatch(entry->entry.getValue().contains(ns)&&onlineInstances().contains(entry.getKey())));value.addProperty("storageReady",store.healthy());value.addProperty("storageMode",config.storageMode());value.addProperty("scope",value.has("scope")?value.get("scope").getAsString():"global");value.addProperty("healthy",store.healthy()&&(ns.equals("memorialtitles")?titles!=null&&titles.healthy():ns.equals("dailyfortunes")?fortunes!=null&&bool(fortunes.status(),"database",false):true));
+      JsonObject value=manifest.deepCopy();String ns=text(value,"id",64);value.addProperty("registered",true);value.addProperty("enabled",ns.equals("memorialtitles")?titles!=null:ns.equals("dailyfortunes")?fortunes!=null:ns.equals("playerhub")?config.unified():gameModules.containsKey(ns));value.addProperty("gameConnected",gameNamespaces.entrySet().stream().anyMatch(entry->entry.getValue().contains(ns)&&onlineInstances().contains(entry.getKey())));value.addProperty("storageReady",store.healthy());value.addProperty("storageMode",config.storageMode());value.addProperty("scope",value.has("scope")?value.get("scope").getAsString():"global");value.addProperty("healthy",store.healthy()&&(ns.equals("memorialtitles")?titles!=null&&titles.healthy():ns.equals("dailyfortunes")?fortunes!=null&&bool(fortunes.status(),"database",false):true));
       if(ns.equals("memorialtitles"))value.add("capabilities",JSON.toJsonTree(List.of("称号档案","玩家收藏","首登奖励","操作记录")));else if(ns.equals("dailyfortunes"))value.add("capabilities",JSON.toJsonTree(List.of("签文档案","玩家签历","操作记录","抽签设置")));else if(value.has("uiCapabilities"))value.add("capabilities",value.get("uiCapabilities"));
       if(ns.equals("memorialtitles")&&titles!=null){value.addProperty("titles",titles.snapshot().titles().size());value.addProperty("players",platform.profiles().getAsJsonArray("players").size());}values.add(value);
     }return values;
@@ -159,6 +224,7 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   private Set<String> onlineInstances(){long now=System.currentTimeMillis();Set<String> result=new HashSet<>();presence.forEach((key,value)->{if(value.until()>now)result.add(key);});return result;}
   private Set<UUID> admitted(String instance){Presence p=presence.get(instance);return p!=null&&p.until()>System.currentTimeMillis()?p.players():Set.of();}
   public void initializePlatform()throws Exception{
+    updates.migrate();platform.register("playerhub",PlayerHubUpdatesStore.manifest());updates.syncPacks();
     if(titles!=null)platform.register("memorialtitles",moduleManifest("memorialtitles",TitlesPlatformAdapter.storageManifest()));
     if(fortunes!=null)platform.register("dailyfortunes",moduleManifest("dailyfortunes",FortuneBackend.storageManifest()));
     if(fortunes!=null)fortunes.request("GET","/state",new JsonObject(),Map.of(),"platform-init",Set.of());
@@ -175,7 +241,7 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   private void registerGameModules(String instance,JsonObject info)throws Exception{
     if(!info.has("extensions"))return;Set<String> present=new HashSet<>();for(JsonElement element:array(info,"extensions",64)){
       JsonObject module=element.getAsJsonObject();String ns=text(module,"id",64);if(!module.has("storage"))continue;present.add(ns);if(module.equals(gameModules.get(ns)))continue;JsonObject manifest=object(module,"storage");
-      if(!ns.equals("memorialtitles")&&!ns.equals("dailyfortunes")){if(manifest.has("tables")&&!manifest.getAsJsonArray("tables").isEmpty())throw new SecurityException("Only native service adapters own SQL tables");platform.register(ns,manifest);}
+      if(!ns.equals("memorialtitles")&&!ns.equals("dailyfortunes")&&!ns.equals("playerhub")){if(manifest.has("tables")&&!manifest.getAsJsonArray("tables").isEmpty())throw new SecurityException("Only native service adapters own SQL tables");platform.register(ns,manifest);}
       gameModules.put(ns,module.deepCopy());
     }gameNamespaces.put(instance,Set.copyOf(present));gameModules.keySet().removeIf(ns->gameNamespaces.values().stream().noneMatch(set->set.contains(ns)));
   }
@@ -193,10 +259,10 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
       if(!config.unified())throw new IllegalStateException("全局资料操作需要先迁移到统一平台存储");PlatformDeletion deletion=new PlatformDeletion(store,platform,web.avatars);
       if(path.equals("/api/manager/player-recoveries")&&!post){json(e,200,deletion.recoveries());return true;}
       if(!post)throw new IllegalArgumentException("需要POST");for(JsonObject instance:store.instances())if(!instance.get("stopped").getAsBoolean()&&System.currentTimeMillis()-instance.get("lastSeen").getAsLong()>10000)throw new IllegalStateException("游戏连接中断，无法确认玩家已离线，请恢复连接后再操作");JsonObject b=body(e);
-      if(path.equals("/api/manager/player-restore")){deletion.restore(actor,text(b,"recovery",36),online());if(titles!=null)titles.reconnect().get(15,TimeUnit.SECONDS);json(e,200,Map.of("ok",true));return true;}
+      if(path.equals("/api/manager/player-restore")){deletion.restore(actor,text(b,"recovery",36),online());updates.changed();community.changed();rankings.invalidateAll();if(titles!=null)titles.reconnect().get(15,TimeUnit.SECONDS);json(e,200,Map.of("ok",true));return true;}
       UUID player=UUID.fromString(text(b,"player",36));if(config.owners().contains(player)||web.accounts.list().stream().anyMatch(a->a.endsWith(" → "+player)))throw new IllegalStateException("此玩家关联平台管理员或网页账号，请先单独处理账号；本入口不删除管理身份");
       if(path.endsWith("/preview")){json(e,200,deletion.preview(player,online()));return true;}
-      if(!path.endsWith("/confirm")||!bool(b,"confirm",false))throw new IllegalArgumentException("需要明确二次确认");String recovery=deletion.delete(actor,player,text(b,"stamp",64),text(b,"confirmName",64),online());if(titles!=null)titles.reconnect().get(15,TimeUnit.SECONDS);json(e,200,Map.of("ok",true,"recovery",recovery));return true;
+      if(!path.endsWith("/confirm")||!bool(b,"confirm",false))throw new IllegalArgumentException("需要明确二次确认");String recovery=deletion.delete(actor,player,text(b,"stamp",64),text(b,"confirmName",64),online());updates.changed();community.changed();rankings.invalidateAll();if(titles!=null)titles.reconnect().get(15,TimeUnit.SECONDS);json(e,200,Map.of("ok",true,"recovery",recovery));return true;
     }
     if(path.equals("/api/manager/backup-policy")){if(post){JsonObject b=body(e);platform.retention((int)number(b,"retentionDays",-1,1,3650),actor.toString());}json(e,200,Map.of("retentionDays",platform.retention(config.backupRetentionDays()),"intervalHours",12));return true;}
     if(path.equals("/api/manager/profiles")&&!post){json(e,200,platform.profiles());return true;}
@@ -226,16 +292,41 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   }
   private boolean adminRouteLocked(HttpExchange e,String path,UUID actorId,BooleanSupplier authorized)throws Exception{
     TitleService.Actor actor=new TitleService.Actor(actorId,actorId.toString(),false,true);
+    if(path.startsWith("/api/playerhub/community/")){
+      try{
+        if(!config.unified())throw new IllegalStateException("社区功能需要统一平台存储");
+        Map<String,String> q=query(e);JsonObject payload=e.getRequestMethod().equals("POST")?body(e):new JsonObject();
+        if(payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length>8192)throw new IllegalArgumentException("社区请求过大");
+        playerJson(e,200,community.admin(instance(q),e.getRequestMethod(),path.substring("/api/playerhub/community".length()),payload,q,actorId.toString(),titles,fortunes,online()));
+      }catch(SecurityException denied){json(e,403,Map.of("error",Objects.toString(denied.getMessage(),"操作未获授权")));}
+      catch(IllegalArgumentException invalid){json(e,400,Map.of("error",Objects.toString(invalid.getMessage(),"参数无效")));}
+      catch(IllegalStateException conflict){json(e,409,Map.of("error",Objects.toString(conflict.getMessage(),"内容已更新")));}
+      catch(Exception unavailable){json(e,503,Map.of("error","社区数据暂不可用，请稍后重试"));}return true;
+    }
+    if(path.equals("/api/playerhub/leaderboards")) {
+      if(!e.getRequestMethod().equals("GET"))throw new IllegalArgumentException("排行为只读接口");
+      if(!config.unified())throw new IllegalStateException("玩家排行需要统一平台存储");
+      Map<String,String> query=query(e);
+      playerJson(e,200,rankings.admin(instance(query),actorId,query,fortunes));
+      return true;
+    }
+    if(path.startsWith("/api/playerhub/")){
+      try{if(!config.unified())throw new IllegalStateException("PlayerHub 更新日志需要统一平台存储");playerJson(e,200,updates.admin(e.getRequestMethod(),path.substring("/api/playerhub".length()),e.getRequestMethod().equals("POST")?body(e):new JsonObject(),query(e),actorId.toString(),profileName(actorId)));}
+      catch(SecurityException denied){json(e,403,Map.of("error",Objects.toString(denied.getMessage(),"操作未获授权")));}
+      catch(IllegalArgumentException invalid){json(e,400,Map.of("error",Objects.toString(invalid.getMessage(),"请求参数无效")));}
+      catch(IllegalStateException conflict){json(e,409,Map.of("error",Objects.toString(conflict.getMessage(),"内容已改变，请刷新")));}
+      catch(Exception unavailable){json(e,503,Map.of("error","更新日志数据暂不可用，请稍后重试"));}return true;
+    }
     if(platformRoute(e,path,actorId))return true;
     if(titlesAdapter!=null&&titlesAdapter.handle(e,path,actorId,online()))return true;
-    if(path.startsWith("/api/dailyfortunes/")){if(fortunes==null){json(e,404,Map.of("error","DailyFortunes 扩展未启用"));return true;}String method=e.getRequestMethod();if(!method.equals("GET")&&!method.equals("POST")){json(e,405,Map.of("error","仅支持 GET / POST"));return true;}try{json(e,200,fortunes.request(method,path.substring("/api/dailyfortunes".length()),method.equals("POST")?body(e):new JsonObject(),query(e),actor.player().toString(),online()));}catch(SecurityException denied){json(e,403,Map.of("error",fortuneError(denied)));}catch(IllegalArgumentException invalid){json(e,400,Map.of("error",fortuneError(invalid)));}catch(IllegalStateException conflict){json(e,409,Map.of("error",fortuneError(conflict)));}catch(Exception unavailable){json(e,503,Map.of("error","抽签数据暂不可用，请稍后重试"));}return true;}
+    if(path.startsWith("/api/dailyfortunes/")){if(fortunes==null){json(e,404,Map.of("error","DailyFortunes 扩展未启用"));return true;}String method=e.getRequestMethod();if(!method.equals("GET")&&!method.equals("POST")){json(e,405,Map.of("error","仅支持 GET / POST"));return true;}try{JsonObject fortuneResult=fortunes.request(method,path.substring("/api/dailyfortunes".length()),method.equals("POST")?body(e):new JsonObject(),query(e),actor.player().toString(),online());if(method.equals("POST")){rankings.invalidateAll();community.changed();}json(e,200,fortuneResult);}catch(SecurityException denied){json(e,403,Map.of("error",fortuneError(denied)));}catch(IllegalArgumentException invalid){json(e,400,Map.of("error",fortuneError(invalid)));}catch(IllegalStateException conflict){json(e,409,Map.of("error",fortuneError(conflict)));}catch(Exception unavailable){json(e,503,Map.of("error","抽签数据暂不可用，请稍后重试"));}return true;}
     if(!path.startsWith("/api/manager/"))return false;var q=query(e);String instance=instance(q),archive=q.getOrDefault("archive","");boolean post=e.getRequestMethod().equals("POST");
     if(path.startsWith("/api/manager/avatars/")&&!post){String tail=path.substring("/api/manager/avatars/".length());if(!tail.endsWith(".png"))throw new IllegalArgumentException("头像路径无效");UUID id=UUID.fromString(tail.substring(0,tail.length()-4));boolean known=!platform.profile(id.toString()).get("profile").isJsonNull();if(!known&&!config.owners().contains(id))throw new IllegalArgumentException("玩家未登记");byte[] bytes;if(known)bytes=web.avatars.head(id);else try(var in=getClass().getResourceAsStream("/web/default-heads/"+Math.floorMod(id.hashCode(),18)+".png")){bytes=Objects.requireNonNull(in).readAllBytes();}e.getResponseHeaders().set("Content-Type","image/png");e.sendResponseHeaders(200,bytes.length);e.getResponseBody().write(bytes);return true;}
     switch(path){
       case "/api/manager/bootstrap","/api/manager/state"->{if(post)throw new IllegalArgumentException("只读接口");json(e,200,bootstrap(instance,archive));}
       case "/api/manager/events"->{if(post)throw new IllegalArgumentException("只读接口");stream(e,instance,archive,authorized);}
-      case "/api/manager/archives"->{if(!post){json(e,200,store.archives(instance));break;}JsonObject created=store.createArchive(body(e),actor.player().toString());syncPack();json(e,200,created);}
-      case "/api/manager/archive"->{if(!post)throw new IllegalArgumentException("需要POST");JsonObject b=body(e);store.archive(text(b,"id",36),actor.player().toString());json(e,200,Map.of("ok",true));}
+      case "/api/manager/archives"->{if(!post){json(e,200,store.archives(instance));break;}JsonObject created=store.createArchive(body(e),actor.player().toString());syncPack();if(config.unified()){updates.syncPacks();community.changed();}json(e,200,created);}
+      case "/api/manager/archive"->{if(!post)throw new IllegalArgumentException("需要POST");JsonObject b=body(e);store.archive(text(b,"id",36),actor.player().toString());if(config.unified()){updates.syncPacks();community.changed();}json(e,200,Map.of("ok",true));}
       case "/api/manager/import/preview","/api/manager/import/confirm"->{if(!post)throw new IllegalArgumentException("需要POST");JsonObject b=body(e);if(path.endsWith("confirm")&&!text(b,"checksum",64).equals(digest(JSON.toJson(object(b,"file")))))throw new IllegalArgumentException("导入文件已改变");json(e,200,store.importLegacy(text(b,"archiveId",36),object(b,"file"),actor.player().toString(),path.endsWith("confirm")));}
       case "/api/manager/players"->{if(post)throw new IllegalArgumentException("只读接口");JsonObject state=store.state(instance,archive);String target=state.get("archiveId").getAsString();if(state.get("historical").getAsBoolean())q.put("historical","true");JsonObject result=target.isEmpty()?new JsonObject():store.players(target,q,state.get("connected").getAsBoolean()&&!state.get("historical").getAsBoolean());if(!result.has("rows")){result.add("rows",new JsonArray());result.addProperty("total",0);}for(JsonElement raw:result.getAsJsonArray("rows")){JsonObject p=raw.getAsJsonObject();UUID id=UUID.fromString(text(p,"id",36));long version=web.avatars.version(id);p.addProperty("avatarVersion",version);p.addProperty("avatarUrl","/api/manager/avatars/"+id+".png?v="+version);}json(e,200,result);}
       case "/api/manager/lifetime"->{if(post)throw new IllegalArgumentException("只读接口");json(e,200,store.lifetime(q.getOrDefault("player","")));}

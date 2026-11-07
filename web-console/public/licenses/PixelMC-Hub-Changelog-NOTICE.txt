@@ -1,0 +1,8 @@
+PixelMC-Hub changelog presentation components
+Copyright 2026 zhan_cpu / PixelMC Projects. Apache License 2.0.
+Original project: https://github.com/PixelMC-Projects/PixelMC-Hub
+Source mapping: src/playerhub/SOURCES.json.
+ChangelogArticle.jsx, article.css, CategoryIcon.jsx, richDocument.js and the presentation helpers in model.js originate from PixelMCPlayerHub/src/changelog.
+Manager adaptations use production transport, cached avatars, paging, asynchronous state and revision checks; they do not include prototype data or store.
+The fixed icon geometry is Lucide 0.468.0, ISC; see Lucide-LICENSE.txt.
+No React Bits vendor implementation is copied into this integration.

@@ -12,6 +12,8 @@ import java.util.*;
 public final class ManagerStore {
   private final Database db;
   private volatile boolean platformEnabled;
+  private PlayerHubRankingsStore rankings;
+  void rankings(PlayerHubRankingsStore value){rankings=value;}
   void enableProfiles(){platformEnabled=true;}
   public static final long HOUR=3600000L;
   public ManagerStore(Database.Config config){db=new Database(config);}
@@ -132,7 +134,7 @@ public final class ManagerStore {
     JsonObject summary=new JsonObject();if(snapshot.has("worlds")){JsonArray worlds=snapshot.getAsJsonArray("worlds").deepCopy();for(JsonElement w:worlds)w.getAsJsonObject().remove("performance");summary.add("worlds",worlds);}if(snapshot.has("saveBytes"))summary.add("saveBytes",snapshot.get("saveBytes"));
     update(c,"UPDATE pm_archives SET summary=? WHERE id=?",JSON.toJson(summary),archive);
     if(bool(b,"stopped",false)){update(c,"UPDATE pm_players SET online=FALSE WHERE archive_id=?",archive);update(c,"UPDATE pm_archives SET finalized=TRUE WHERE id=?",archive);}
-    JsonObject result=new JsonObject();result.addProperty("ack",seq);result.addProperty("accepted",true);result.add("commands",JSON.toJsonTree(commands(c,instance,run)));return result;
+    JsonObject result=new JsonObject();if(platformEnabled&&rankings!=null)result.addProperty("rankingsMask",rankings.ingest(c,archive,b));result.addProperty("ack",seq);result.addProperty("accepted",true);result.add("commands",JSON.toJsonTree(commands(c,instance,run)));return result;
   });}
   private static double finite(JsonObject o,String key,double min,double max){double d=o.get(key).getAsDouble();if(!Double.isFinite(d)||d<min||d>max)throw new IllegalArgumentException(key+"超出范围");return d;}
   private void upsertPlayer(Connection c,String archive,JsonObject p,boolean online,boolean live)throws Exception{

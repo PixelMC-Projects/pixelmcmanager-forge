@@ -1,0 +1,109 @@
+/* Manager player cards reuse the Titles layout and controls. */
+.hub-playercards-module .hpc-grid {
+  display: grid;
+  grid-template-columns: minmax(258px, 1.65fr) minmax(160px, 1.35fr) minmax(124px, 1fr) minmax(104px, .85fr) 136px 30px;
+  align-items: center;
+  gap: 16px;
+}
+.hub-playercards-module .player-row { min-height: 74px; }
+.hub-playercards-module[data-density="compact"] .player-row { min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
+.hub-playercards-module .player-link { padding: 0; text-align: left; border: 0; background: transparent; }
+.hub-playercards-module .hpc-player-face { display: inline-flex; overflow: hidden; }
+.hub-playercards-module .hpc-player-face .updates-avatar-2d { width: 100%; height: 100%; border-radius: inherit; box-shadow: none; background: transparent; }
+.hub-playercards-module .hpc-player-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.hub-playercards-module .hpc-row-copy { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.hub-playercards-module .hpc-row-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.hub-playercards-module .hpc-row-copy > small { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-playercards-module .hpc-login-cell { font-size: 10px; font-variant-numeric: tabular-nums; }
+.hub-playercards-module .hpc-row-action { justify-self: end; }
+.hub-playercards-module .hpc-clear-search { margin-left: auto; }
+.hub-playercards-module .editor.wide-editor { width: 590px; }
+.hub-playercards-module .hpc-editor-identity { display: flex; align-items: center; gap: 12px; padding-bottom: 23px; border-bottom: 1px solid var(--soft-border); margin-bottom: 22px; }
+.hub-playercards-module .hpc-editor-identity > div { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.hub-playercards-module .hpc-editor-identity strong { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 550; overflow-wrap: anywhere; }
+.hub-playercards-module .hpc-editor-identity .mono { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.hub-playercards-module .hpc-editor-form { gap: 24px; }
+.hub-playercards-module .hpc-form-section { display: flex; flex-direction: column; gap: 17px; min-width: 0; }
+.hub-playercards-module .hpc-form-section + .hpc-form-section { border-top: 1px solid var(--soft-border); padding-top: 22px; }
+.hub-playercards-module .hpc-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 24px; }
+.hub-playercards-module .hpc-section-heading h3 { margin: 0; color: var(--secondary); font-size: 12px; font-weight: 550; }
+.hub-playercards-module .hpc-section-heading > span { color: var(--muted); font-size: 10px; }
+.hub-playercards-module .hpc-section-heading .button { font-size: 11px; }
+.hub-playercards-module .hpc-field-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hub-playercards-module .hpc-field-heading small { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.hub-playercards-module .hpc-editor-form textarea { min-height: 84px; max-height: 180px; }
+.hub-playercards-module .hpc-form-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 17px; }
+.hub-playercards-module .hpc-color-option { display: inline-flex; align-items: center; gap: 8px; }
+.hub-playercards-module .hpc-color-option > i { width: 13px; height: 13px; flex: none; border-radius: 3px; border: 1px solid #8883; }
+.hub-playercards-module .hpc-conflict { border: 1px solid var(--border); background: var(--surface); padding: 13px; margin-bottom: 20px; border-radius: 6px; color: var(--secondary); font-size: 11px; line-height: 1.8; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.hub-playercards-module .hpc-conflict .button { margin-left: auto; font-size: 11px; }
+.hub-playercards-module .hpc-preview-section { margin-top: 25px; padding-top: 22px; border-top: 1px solid var(--soft-border); }
+.hub-playercards-module .hpc-preview-section > .hpc-section-heading { margin-bottom: 13px; }
+.hub-playercards-module .hpc-mini-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--canvas); }
+.hub-playercards-module .hpc-mini-cover {
+  --profile-color: color-mix(in srgb, var(--hpc-profile-color) 24%, #273044);
+  --profile-color-soft: color-mix(in srgb, var(--hpc-profile-color) 12%, #293247);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 102px;
+  padding: 21px;
+  background: linear-gradient(115deg, var(--profile-color-soft), var(--profile-color));
+}
+.hub-playercards-module[data-theme="light"] .hpc-mini-cover { --profile-color: var(--hpc-profile-color); --profile-color-soft: color-mix(in srgb, var(--hpc-profile-color) 55%, #fff); }
+.hub-playercards-module .hpc-mini-cover > .player-avatar,
+.hub-playercards-module .hpc-mini-identity { position: relative; z-index: 1; }
+.hub-playercards-module .hpc-mini-cover > .profile-backdrop { left: 22%; opacity: .6; }
+.hub-playercards-module .hpc-mini-identity { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.hub-playercards-module .hpc-mini-identity strong { font-size: 19px; font-weight: 600; overflow-wrap: anywhere; }
+.hub-playercards-module .hpc-mini-identity > span { color: var(--secondary); font-size: 10px; }
+.hub-playercards-module .hpc-mini-body { padding: 18px 21px; }
+.hub-playercards-module .hpc-mini-quote { color: var(--text); font-size: 12px; line-height: 1.8; margin: 0 0 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hub-playercards-module .hpc-mini-quote.is-empty { color: var(--muted); }
+.hub-playercards-module .hpc-mini-collections { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.hub-playercards-module .hpc-mini-collections > div { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.hub-playercards-module .hpc-mini-collections span { color: var(--muted); font-size: 10px; }
+.hub-playercards-module .hpc-mini-collections strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.hub-playercards-module .hpc-mini-memory { display: flex; align-items: center; gap: 8px; color: var(--secondary); font-size: 11px; padding-top: 16px; margin-top: 17px; border-top: 1px solid var(--border); }
+.hub-playercards-module .hpc-title-color { color: var(--text); }
+.hub-playercards-module .hpc-title-color.dew { color: #91cbb3; }
+.hub-playercards-module .hpc-title-color.star { color: #ccaddf; }
+.hub-playercards-module .hpc-title-color.wood { color: #d6ac8d; }
+.hub-playercards-module .hpc-title-color.mountain { color: #94c2d9; }
+.hub-playercards-module .hpc-title-color.moon { color: #b3a2e0; }
+.hub-playercards-module .hpc-title-color.harvest { color: #d5bc7a; }
+.hub-playercards-module .hpc-title-color.dawn { color: #d7ab8e; }
+.hub-playercards-module .hpc-title-color.cloud { color: #a7b9dc; }
+.hub-playercards-module[data-theme="light"] .hpc-title-color.dew { color: #43836c; }
+.hub-playercards-module[data-theme="light"] .hpc-title-color.star { color: #8c639f; }
+.hub-playercards-module[data-theme="light"] .hpc-title-color.wood { color: #986c48; }
+.hub-playercards-module[data-theme="light"] .hpc-title-color.mountain { color: #4f7d97; }
+.hub-playercards-module[data-theme="light"] .hpc-title-color.moon { color: #7760a9; }
+.hub-playercards-module[data-theme="light"] .hpc-title-color.harvest { color: #92752d; }
+.hub-playercards-module[data-theme="light"] .hpc-title-color.dawn { color: #9d6e45; }
+.hub-playercards-module[data-theme="light"] .hpc-title-color.cloud { color: #6078a3; }
+@media (max-width: 1250px) {
+  .hub-playercards-module .hpc-grid { grid-template-columns: minmax(235px, 1.6fr) minmax(150px, 1.2fr) minmax(110px, 1fr) minmax(100px, .9fr) 30px; gap: 13px; }
+  .hub-playercards-module .hpc-login-cell { display: none; }
+}
+@media (max-width: 1000px) {
+  .hub-playercards-module .hpc-grid { grid-template-columns: minmax(215px, 1.7fr) minmax(140px, 1.2fr) minmax(110px, 1fr) 28px; }
+  .hub-playercards-module .hpc-memory-cell { display: none; }
+}
+@media (max-width: 760px) {
+  .hub-playercards-module .view-tabs { gap: 16px; }
+  .hub-playercards-module .hpc-grid { grid-template-columns: minmax(180px, 1.5fr) minmax(115px, 1fr) 28px; gap: 12px; }
+  .hub-playercards-module .hpc-bio-cell { display: none; }
+  .hub-playercards-module .editor.wide-editor { width: 530px; }
+}
+@media (max-width: 540px) {
+  .hub-playercards-module .hpc-grid { grid-template-columns: minmax(145px, 1.5fr) minmax(85px, 1fr) 26px; gap: 9px; }
+  .hub-playercards-module .editor.wide-editor { width: 100%; }
+  .hub-playercards-module .hpc-form-columns { grid-template-columns: 1fr; }
+  .hub-playercards-module .hpc-mini-body,
+  .hub-playercards-module .hpc-mini-cover { padding: 17px; }
+}
+
+.hpc-player-face > img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; border-radius: inherit; }

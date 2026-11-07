@@ -1,0 +1,22 @@
+{
+  "origin": "https://github.com/PixelMC-Projects/PixelMC-Hub",
+  "copyright": "2026 zhan_cpu / PixelMC Projects",
+  "license": "Apache-2.0",
+  "files": {
+    "ChangelogArticle.jsx": "PixelMCPlayerHub/src/changelog/ChangelogArticle.jsx",
+    "article.css": "PixelMCPlayerHub/src/changelog/article.css",
+    "CategoryIcon.jsx": "PixelMCPlayerHub/src/changelog/CategoryIcon.jsx",
+    "richDocument.js": "PixelMCPlayerHub/src/changelog/richDocument.js",
+    "model.js": "PixelMCPlayerHub/src/changelog/model.js"
+  },
+  "adaptations": {
+    "ChangelogArticle.jsx": "Fixed local Lucide geometry adapter",
+    "model.js": "Only formatting and pack ordering helpers; no mock data, reducer or storage",
+    "CategoryIcon.jsx": "Fixed local Lucide geometry adapter"
+  },
+  "icons": {
+    "source": "lucide-react 0.468.0/dist/esm/icons",
+    "license": "ISC"
+  },
+  "managerUI": "Approved src/hub-preview/ArticleEditor.jsx and hub-workspace.css preserved separately; production HubWorkspace.jsx uses real API."
+}

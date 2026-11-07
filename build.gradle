@@ -168,7 +168,7 @@ tasks.register('installManagerWeb', Exec) {
 tasks.register('buildManagerWeb', Exec) {
     dependsOn 'installManagerWeb'
     workingDir file('web-console')
-    commandLine(System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm', 'run', 'build')
+    commandLine(System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm', 'run', 'build:manager')
     inputs.files(fileTree('web-console/src'),fileTree('web-console/public'),'web-console/vite.config.mjs','web-console/package-lock.json')
     outputs.dir('web-console/dist/client')
 }

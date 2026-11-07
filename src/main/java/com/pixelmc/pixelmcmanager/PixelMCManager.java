@@ -39,6 +39,10 @@ public final class PixelMCManager {
 
         MinecraftForge.EVENT_BUS.register(new WelcomeEventHandler(configManager, statsStore, auditService, scheduler, announcementScheduler, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler, bridge));
         MinecraftForge.EVENT_BUS.register(bridge);
+        MinecraftForge.EVENT_BUS.register(bridge.foodBook());
+        net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus().addListener(
+                (net.minecraftforge.fml.event.config.ModConfigEvent.Reloading event) ->
+                        bridge.foodBook().configurationReloaded(event.getConfig().getModId()));
         MinecraftForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, auditService, placeholderResolver, textParser, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler));
 
         configManager.loadOrCreate();

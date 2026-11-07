@@ -36,3 +36,8 @@ Manager Service 0.6.0 需要 MemorialTitles 0.5.0-dev 与 DailyFortunes 0.2.0 �
 Service-only hotfix 0.6.0.web.1 uses DailyFortunes 0.2.1 shared source. Build with `./gradlew managerServiceJar -PmanagerServiceVersion=0.6.0.web.1`. The game mod and bridge protocol stay at 0.6.0; both Fabric versions reuse this same service package without a game-code port.
 
 仅网页修复版 0.6.0.web.1 使用 DailyFortunes 0.2.1 的共享源码。构建命令如上；游戏 Manager 和桥接协议仍为 0.6.0。两个 Fabric 版本共用此网页包，不需要改动游戏代码。
+
+
+Manager 的网页构建复用 PixelMC-Hub 的部分源码。默认从相邻项目目录读取；如源码不在默认位置，构建前将环境变量 `PIXELMC_HUB_SOURCE_ROOT` 指向已检出的 Hub 项目根目录，并使用发行来源清单指定的提交。
+
+Manager 服务使用 `build:manager` 编译网页；原有 `build` 脚本仍用于 Sites 打包。

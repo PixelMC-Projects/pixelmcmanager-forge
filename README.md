@@ -2,16 +2,16 @@
 
 [中文](#中文) · [English](#english)
 
-[统一下载 / All loaders and game versions](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.2-hub.1)
+[统一下载 / All loaders and game versions](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1)
 
 版本 / Versions（Manager 只需服务端安装 / server-only）:
 
 | Minecraft | Loader | Source branch | Download |
 | --- | --- | --- | --- |
-| 1.20.1 | Forge / Java17 | [mc-1.20.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/mc-1.20.1) | [0.6.2-hub.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.2-hub.1) |
-| 1.21.1 | NeoForge / Java21 | [neoforge/1.21.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/neoforge/1.21.1) | [0.6.2-hub.1 NeoForge](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.2-hub.1) |
+| 1.20.1 | Forge / Java17 | [mc-1.20.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/mc-1.20.1) | [0.6.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1) |
+| 1.21.1 | NeoForge / Java21 | [neoforge/1.21.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/neoforge/1.21.1) | [0.6.1 NeoForge](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1-1.21.1) |
 
-Fabric 1.20.1 / 1.21.1 / 26.1.2 / 26.2 位于独立的 [Fabric 仓库](https://github.com/PixelMC-Projects/pixelmcmanager-fabric)。各加载器共用最新的 [0.6.2-hub.1 独立网页服务](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.2-hub.1)。
+Fabric 1.20.1 / 1.21.1 / 26.1.2 / 26.2 位于独立的 [Fabric 仓库](https://github.com/PixelMC-Projects/pixelmcmanager-fabric)。各加载器共用最新的 [0.6.0.web.2 独立网页服务](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.0.web.2)。
 Fabric builds stay in the separate Fabric repository. All loaders share the latest independent web service linked above.
 
 ## 中文
@@ -20,6 +20,7 @@ Fabric builds stay in the separate Fabric repository. All loaders share the late
 
 ### 功能
 
+- 本地开发候选 0.9.0-dev 增加玩家名片与整合包回忆的真实接口和管理员页面，对接 Hub 0.5.0-dev；保留更新日志与只读排行。社区存储清单为 v3，共 15 张 PlayerHub 表，升级前应保留完整备份。部署和实游验收待完成。
 - 玩家可用 `/killme` 自杀，先以玩家聊天样式显示“自刎归天!!!”，再执行原版死亡流程。
 
 - 实时查看 TPS、MSPT、内存、在线玩家与维度状态。
@@ -43,6 +44,7 @@ Server monitoring, player records, and everyday administration in one place. Use
 
 ### Features
 
+- Local candidate 0.9.0-dev adds durable player profiles, per-archive memories and authenticated community administration for Hub 0.5.0-dev, retaining changelog and read-only rankings. PlayerHub storage manifest v3 contains 15 tables; retain a complete pre-upgrade backup. Deployment and gameplay acceptance remain pending.
 - Players can use `/killme` to announce “自刎归天!!!” in player-chat style, then die through vanilla's self-kill command.
 
 - Monitor live TPS, MSPT, memory, players, and dimensions.

@@ -126,7 +126,11 @@ export const worlds = [
 export const worldTotals = worlds.reduce((total, world) => ({strong:total.strong+world.strong,weak:total.weak+world.weak}),{strong:0,weak:0});
 export const population = {online:12,limit:20};
 const date = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
-export const formatDate = value => date.format(new Date(value));
+export function formatDate(value) {
+  if (!Number.isFinite(value) || value <= 0) return '—';
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime()) ? '—' : date.format(timestamp);
+}
 export function uptime(value) {
   const seconds = Math.max(0, Math.floor(value / 1000));
   return { days: Math.floor(seconds / 86400), hours: String(Math.floor(seconds / 3600) % 24).padStart(2, '0'), minutes: String(Math.floor(seconds / 60) % 60).padStart(2, '0'), seconds: String(seconds % 60).padStart(2, '0') };
