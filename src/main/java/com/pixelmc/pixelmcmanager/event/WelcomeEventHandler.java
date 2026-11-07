@@ -51,7 +51,7 @@ public final class WelcomeEventHandler {
             return;
         }
         restartScheduler.playerJoined();
-        if (restartScheduler.rejectRestartJoin(player)) return;
+        if (bridge.rejectMobileJoin(player) || restartScheduler.rejectRestartJoin(player)) return;
         if (maintenanceScheduler.rejectMaintenanceJoin(player)) {
             return;
         }

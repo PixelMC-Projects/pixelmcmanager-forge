@@ -89,6 +89,14 @@ public final class IdleRestartScheduler {
                 + (state.failure().isEmpty() ? "" : "；已暂停：" + state.failure());
     }
 
+    public com.google.gson.JsonObject mobileState() {
+        var out=new com.google.gson.JsonObject();var files=monitor==null?null:monitor.view();
+        out.addProperty("manual",state.manual());out.addProperty("dispatched",state.dispatched());
+        out.addProperty("emptySeconds",state.emptyMillis(System.nanoTime())/1000);
+        out.addProperty("modsChanged",files!=null&&files.ready()&&files.changed());
+        out.addProperty("ready",view.ready());out.addProperty("failure",state.failure());return out;
+    }
+
     private String backendName() {
         if (!view.ready()) return "不可用（" + view.message() + "）";
         return view.backend().equals("mcsm") ? "MCSM" : "普通启动托管脚本";

@@ -28,4 +28,5 @@ public final class NeoForgeEvents {
     @SubscribeEvent(priority=EventPriority.LOWEST) public void end(ServerTickEvent.Post e) { bridge.endTick(e.getServer()); }
     @SubscribeEvent(priority=EventPriority.HIGHEST) public void beginLevel(LevelTickEvent.Pre e) { if(e.getLevel() instanceof ServerLevel l) bridge.beginLevel(l); }
     @SubscribeEvent(priority=EventPriority.LOWEST) public void endLevel(LevelTickEvent.Post e) { if(e.getLevel() instanceof ServerLevel l) bridge.endLevel(l); }
+    @SubscribeEvent(priority=EventPriority.LOWEST) public void chat(net.neoforged.neoforge.event.ServerChatEvent event) { bridge.mobileChat(event.getPlayer(),event.getMessage().getString()); }
 }

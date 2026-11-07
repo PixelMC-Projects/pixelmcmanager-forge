@@ -23,7 +23,7 @@ public final class PixelMCManager {
     public static final String MOD_ID = "pixelmcmanager";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public PixelMCManager() {
+    public PixelMCManager(net.neoforged.bus.api.IEventBus modBus) {
         WelcomeConfigManager configManager = new WelcomeConfigManager(LOGGER);
         PlayerStatsStore statsStore = new PlayerStatsStore(LOGGER);
         AuditService auditService = new AuditService(LOGGER);
@@ -40,6 +40,9 @@ public final class PixelMCManager {
         NeoForge.EVENT_BUS.register(new com.pixelmc.pixelmcmanager.event.NeoForgeEvents(new WelcomeEventHandler(configManager, statsStore, auditService, scheduler, announcementScheduler, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler, bridge), bridge));
         NeoForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, auditService, placeholderResolver, textParser, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler));
 
+        NeoForge.EVENT_BUS.register(bridge.foodBook());
+        modBus.addListener((net.neoforged.fml.event.config.ModConfigEvent.Reloading event) ->
+                bridge.foodBook().configurationReloaded(event.getConfig().getModId()));
         configManager.loadOrCreate();
         LOGGER.info("PixelMC Manager loaded.");
     }

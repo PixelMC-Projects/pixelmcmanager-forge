@@ -5,6 +5,7 @@ import com.google.gson.*;
 import com.pixelmc.pixelmcmanager.PixelMCManager;
 import com.pixelmc.pixelmcmanager.api.ManagerBridgeApi;
 import com.pixelmc.pixelmcmanager.api.PlayerHubApi;
+import com.pixelmc.pixelmcmanager.api.PlayerHubUpdatesApi;
 import com.pixelmc.pixelmcmanager.config.*;
 import com.pixelmc.pixelmcmanager.maintenance.*;
 import com.pixelmc.pixelmcmanager.restart.IdleRestartScheduler;
@@ -25,6 +26,10 @@ import net.minecraft.world.level.storage.LevelResource;
 /** Sampling is on the game thread; all HTTP, journal and disk work is on bounded daemon workers. */
 public final class BridgeAgent {
     private final PlayerStatsStore stats;
+    private MobileConsole mobileConsole = new MobileConsole();
+    private final Map<UUID,String> mobileNames = new HashMap<>();
+    private volatile long mobileHoldUntil;
+    private volatile String mobileLease = "";
     private final WelcomeConfigManager config;
     private final MaintenanceScheduler maintenance;
     private final StopServerScheduler stop;
@@ -32,6 +37,19 @@ public final class BridgeAgent {
     private volatile BridgeConfig bridge;
     private volatile PlayerHubScope playerHubScope;
     private volatile int platformStorage;
+    private volatile int playerHubCapability;
+    private volatile int communityCapability;
+    private volatile String communityRevision="";
+    private volatile String playerHubRevision="";
+    private final Map<String,String> rankingsTokens=new HashMap<>();
+    private volatile int rankingsCapability;
+    private record RankingRead(UUID player, Long session, long generation, JsonObject data,
+                               CompletableFuture<String> future) {}
+    private final ArrayDeque<RankingRead> rankingReads = new ArrayDeque<>();
+    private boolean rankingDrainScheduled;
+    private final com.pixelmc.pixelmcmanager.compat.FoodBookCompat foodBook =
+            new com.pixelmc.pixelmcmanager.compat.FoodBookCompat(this::admitted);
+    public com.pixelmc.pixelmcmanager.compat.FoodBookCompat foodBook() { return foodBook; }
     private volatile MinecraftServer server;
     private volatile ScheduledExecutorService io=telemetryWorker();
     private volatile ThreadPoolExecutor rpc=rpcWorker();
@@ -46,7 +64,7 @@ public final class BridgeAgent {
     private final ConcurrentLinkedQueue<JsonObject> loginQueue=new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<JsonObject> ackQueue=new ConcurrentLinkedQueue<>();
     private final Set<UUID> admitted=ConcurrentHashMap.newKeySet();
-    private final Map<UUID,Long> sessions=new HashMap<>();
+    private final Map<UUID,Long> sessions=new ConcurrentHashMap<>();
     private final Set<String> executing=ConcurrentHashMap.newKeySet();
     private final Map<String,JsonObject> completed=new ConcurrentHashMap<>();
     private final Map<String,Long> levelStarts=new HashMap<>();
@@ -75,7 +93,8 @@ public final class BridgeAgent {
             if(!awaitWorkers(1000))throw new IllegalStateException("Previous Manager bridge workers have not stopped");
             io=telemetryWorker();rpc=rpcWorker();disk=diskWorker();
         }else if(startedAt!=0&&!stopping)throw new IllegalStateException("Manager bridge runtime is already active");
-        stopping=false;finalized=false;bridge=null;platformStorage=0;playerHubScope=null;
+        stopping=false;finalized=false;bridge=null;platformStorage=0;playerHubScope=null;playerHubCapability=0;playerHubRevision="";communityCapability=0;communityRevision="";
+        clearRankingReads();rankingsTokens.clear();rankingsCapability=0;foodBook.clear();
         run=UUID.randomUUID().toString();status="disabled";url="";archive="";world="";server=null;folder=null;
         startedAt=tickStart=tickIndex=lastSampleNano=lastSampleTick=nextDisk=seq=lastStatsSync=0;
         tickSum=0;tickCount=0;lostFrames=0;saveBytes=-1;storageAt=0;storage=Map.of();
@@ -83,6 +102,7 @@ public final class BridgeAgent {
         loginQueue.clear();ackQueue.clear();admitted.clear();sessions.clear();executing.clear();completed.clear();
         levelStarts.clear();dimensionSamples.clear();levelTimings.clear();ticks.clear();pendingLogins.clear();
         spool=null;inflight=null;current=null;freshPending=false;journalDirty=false;needHello=true;runtimeGeneration++;
+        mobileConsole=new MobileConsole();mobileNames.clear();mobileHoldUntil=0;mobileLease="";
     }
     private static ScheduledExecutorService telemetryWorker(){return Executors.newSingleThreadScheduledExecutor(worker("Manager-Telemetry"));}
     private static ThreadPoolExecutor rpcWorker(){return new ThreadPoolExecutor(1,1,30,TimeUnit.SECONDS,new ArrayBlockingQueue<>(64),worker("Manager-Extension"),new ThreadPoolExecutor.AbortPolicy());}
@@ -93,14 +113,20 @@ public final class BridgeAgent {
     }catch(InterruptedException interrupted){Thread.currentThread().interrupt();return false;}}
     private boolean startRuntime(){try{prepareRuntime();return true;}catch(IllegalStateException unavailable){PixelMCManager.LOGGER.error("Manager bridge runtime cannot be reused yet; gameplay continues",unavailable);return false;}}
     boolean runtimeCurrent(long generation){return !stopping&&runtimeGeneration==generation;}
-    void stopWorkers(){stopping=true;io.shutdownNow();rpc.shutdownNow();disk.shutdownNow();if(!awaitWorkers(1000))PixelMCManager.LOGGER.warn("Manager bridge workers are still closing; next runtime will wait before reuse");}
+    void stopWorkers(){stopping=true;clearRankingReads();io.shutdownNow();rpc.shutdownNow();disk.shutdownNow();if(!awaitWorkers(1000))PixelMCManager.LOGGER.warn("Manager bridge workers are still closing; next runtime will wait before reuse");}
     public BridgeAgent(PlayerStatsStore stats,WelcomeConfigManager config,MaintenanceScheduler maintenance,StopServerScheduler stop,IdleRestartScheduler restart){this.stats=stats;this.config=config;this.maintenance=maintenance;this.stop=stop;this.restart=restart;}
     public static boolean fake(ServerPlayer p){if(p instanceof net.neoforged.neoforge.common.util.FakePlayer)return true;for(Class<?> type=p.getClass();type!=null;type=type.getSuperclass())if(Set.of("dev.dubhe.curtain.features.player.patches.EntityPlayerMPFake","carpet.patches.EntityPlayerMPFake").contains(type.getName()))return true;return false;}
     public boolean admitted(UUID id){return admitted.contains(id);}
     public String publicUrl(){return url;}
-    public void login(ServerPlayer player,long at){if(fake(player))return;admitted.add(player.getUUID());sessions.put(player.getUUID(),at);if(bridge!=null&&!bridge.enabled)return;JsonObject event=new JsonObject();String eventId=UUID.randomUUID().toString();event.addProperty("id",eventId);event.addProperty("sessionId",eventId);event.addProperty("uuid",player.getUUID().toString());event.addProperty("name",player.getGameProfile().getName());event.addProperty("at",at);loginQueue.add(event);}
-    public void logout(UUID id){admitted.remove(id);sessions.remove(id);PlayerHubApi.logout(id);}
-    public void started(MinecraftServer server){if(!startRuntime())return;this.server=server;startedAt=System.currentTimeMillis();lastSampleNano=System.nanoTime();folder=server.getWorldPath(LevelResource.ROOT).resolve("pixelmcmanager/bridge");ManagerBridgeApi.attach(this);PlayerHubApi.attach(stats,id->!stopping&&admitted(id),()->{PlayerHubScope scope=playerHubScope;return scope==null?null:scope.snapshot();});
+    public boolean rejectMobileJoin(ServerPlayer player){
+        if(System.currentTimeMillis()>=mobileHoldUntil)return false;
+        player.connection.disconnect(net.minecraft.network.chat.Component.literal("服务器正在执行启停操作，请稍后重连。"));return true;
+    }
+    public void mobileChat(ServerPlayer player,String message){if(admitted(player.getUUID()))mobileConsole.add("chat",player.getScoreboardName()+"："+message);}
+
+    public void login(ServerPlayer player,long at){if(fake(player))return;mobileNames.put(player.getUUID(),player.getGameProfile().getName());mobileConsole.add("join",player.getGameProfile().getName()+" 加入了服务器");admitted.add(player.getUUID());sessions.put(player.getUUID(),at);foodBook.login(player);if(bridge!=null&&!bridge.enabled)return;JsonObject event=new JsonObject();String eventId=UUID.randomUUID().toString();event.addProperty("id",eventId);event.addProperty("sessionId",eventId);event.addProperty("uuid",player.getUUID().toString());event.addProperty("name",player.getGameProfile().getName());event.addProperty("at",at);loginQueue.add(event);}
+    public void logout(UUID id){String name=mobileNames.remove(id);if(name!=null)mobileConsole.add("leave",name+" 离开了服务器");admitted.remove(id);sessions.remove(id);PlayerHubApi.logout(id);PlayerHubUpdatesApi.logout(id);com.pixelmc.pixelmcmanager.api.PlayerHubCommunityApi.logout(id);com.pixelmc.pixelmcmanager.api.PlayerHubRankingsApi.logout(id);foodBook.logout(id);}
+    public void started(MinecraftServer server){if(!startRuntime())return;this.server=server;foodBook.start(server);startedAt=System.currentTimeMillis();lastSampleNano=System.nanoTime();folder=server.getWorldPath(LevelResource.ROOT).resolve("pixelmcmanager/bridge");ManagerBridgeApi.attach(this);com.pixelmc.pixelmcmanager.api.PlayerHubRankingsApi.attach(stats,id->!stopping&&admitted(id),()->platformStorage==1&&rankingsCapability==1);PlayerHubUpdatesApi.attach(stats,id->!stopping&&admitted(id),()->platformStorage==1&&playerHubCapability==1);com.pixelmc.pixelmcmanager.api.PlayerHubCommunityApi.attach(stats,id->!stopping&&admitted(id),()->platformStorage==1&&communityCapability==1);PlayerHubApi.attach(stats,id->!stopping&&admitted(id),()->{PlayerHubScope scope=playerHubScope;return scope==null?null:scope.snapshot();});
         io.execute(()->{try{Path configDirectory=net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get();bridge=BridgeConfig.load(configDirectory.resolve("pixelmcmanager-bridge.json"));if(bridge.enabled){Files.createDirectories(folder);Path identity=folder.resolve("world-id.txt");world=Files.exists(identity)?UUID.fromString(Files.readString(identity).strip()).toString():UUID.randomUUID().toString();if(!Files.exists(identity))atomic(identity,world);}try{playerHubScope=PlayerHubScope.open(configDirectory,folder);playerHubScope.managed(bridge.enabled);if(world.isEmpty())world=playerHubScope.worldId();}catch(Exception scopeFailure){PixelMCManager.LOGGER.warn("Manager player scope is unavailable: {}",scopeFailure.getClass().getSimpleName());}if(!bridge.enabled)return;url=bridge.publicUrl;
             Path journal=folder.resolve("pending-logins.json");if(Files.exists(journal)){JsonArray values=JsonParser.parseString(Files.readString(journal)).getAsJsonArray();if(values.size()>100000)throw new IllegalStateException("Login journal limit exceeded; retain it and inspect manually");values.forEach(v->pendingLogins.add(v.getAsJsonObject()));}
             spool=new TelemetrySpool(folder.resolve("telemetry"),run);status="connecting";io.scheduleWithFixedDelay(this::pump,0,1,TimeUnit.SECONDS);
@@ -121,34 +147,193 @@ public final class BridgeAgent {
         if(nano-lastSampleNano>=1_000_000_000L){double tps=Math.min(20,(tickIndex-lastSampleTick)*1e9/(nano-lastSampleNano));capture(false,tps,tickCount==0?0:tickSum/tickCount);lastSampleTick=tickIndex;lastSampleNano=nano;tickSum=0;tickCount=0;levelTimings.clear();}
     }
     private void capture(boolean stopped,double tps,double mspt){long now=System.currentTimeMillis();JsonObject packet=new JsonObject();packet.addProperty("at",now);packet.addProperty("stopped",stopped);JsonArray people=new JsonArray(),all=new JsonArray();
-        boolean full=stopped||now-lastStatsSync>=30000;List<PlayerStatsEntry> entries=full?stats.listAll():admitted.stream().map(id->new PlayerStatsEntry(id,stats.getStats(id))).filter(e->e.stats()!=null).toList();if(full)lastStatsSync=now;for(PlayerStatsEntry entry:entries){PlayerStats p=entry.stats();JsonObject raw=JSON.toJsonTree(p).getAsJsonObject();raw.addProperty("id",entry.uuid().toString());ServerPlayer online=server.getPlayerList().getPlayer(entry.uuid());boolean present=online!=null&&admitted(online.getUUID());if(present){raw.addProperty("totalOnlineMillis",p.totalOnlineMillis+stats.uncheckpointedMillis(entry.uuid(),now));}all.add(raw.deepCopy());if(present){raw.addProperty("world",online.level().dimension().location().toString());raw.addProperty("dimensionId",online.level().dimension().location().toString());raw.addProperty("ping",online.connection.latency());raw.addProperty("sessionMillis",Math.max(0,now-sessions.getOrDefault(entry.uuid(),now)));raw.addProperty("isOnline",true);people.add(raw);}}
+        boolean full=stopped||now-lastStatsSync>=30000;List<PlayerStatsEntry> entries=full?stats.listAll():admitted.stream().map(id->new PlayerStatsEntry(id,stats.getStats(id))).filter(e->e.stats()!=null).toList();if(full)lastStatsSync=now;for(PlayerStatsEntry entry:entries){PlayerStats p=entry.stats();JsonObject raw=JSON.toJsonTree(p).getAsJsonObject();raw.addProperty("id",entry.uuid().toString());ServerPlayer online=server.getPlayerList().getPlayer(entry.uuid());boolean present=online!=null&&admitted(online.getUUID());if(present){raw.addProperty("totalOnlineMillis",p.totalOnlineMillis+stats.uncheckpointedMillis(entry.uuid(),now));foodBook.append(online,raw);}all.add(raw.deepCopy());if(present){raw.addProperty("world",online.level().dimension().location().toString());raw.addProperty("dimensionId",online.level().dimension().location().toString());raw.addProperty("ping",online.connection.latency());raw.addProperty("sessionMillis",Math.max(0,now-sessions.getOrDefault(entry.uuid(),now)));raw.addProperty("isOnline",true);people.add(raw);}}
         for(ServerPlayer p:server.getPlayerList().getPlayers())if(fake(p)){JsonObject raw=new JsonObject();raw.addProperty("id",p.getUUID().toString());raw.addProperty("name",p.getGameProfile().getName());raw.addProperty("fake",true);raw.addProperty("world",p.level().dimension().location().toString());people.add(raw);}
-        packet.add("players",people);packet.add("stats",all);packet.add("longTicks",JSON.toJsonTree(ticks));ticks.clear();JsonObject snapshot=new JsonObject();snapshot.addProperty("version",net.neoforged.fml.ModList.get().getModContainerById("pixelmcmanager").orElseThrow().getModInfo().getVersion().toString());snapshot.addProperty("minecraft","1.21.1");snapshot.addProperty("java",System.getProperty("java.version"));snapshot.addProperty("maxHeap",Runtime.getRuntime().maxMemory()/1073741824d);snapshot.addProperty("heapCommitted",Runtime.getRuntime().totalMemory()/1073741824d);snapshot.addProperty("limit",server.getMaxPlayers());snapshot.addProperty("saveBytes",saveBytes);snapshot.addProperty("storageAt",storageAt);snapshot.add("players",people);snapshot.add("extensions",ManagerBridgeApi.extensions());snapshot.addProperty("bridgeStatus",status);snapshot.addProperty("tickIndex",tickIndex);
+        packet.add("players",people);packet.add("stats",all);packet.add("longTicks",JSON.toJsonTree(ticks));ticks.clear();JsonObject snapshot=new JsonObject();snapshot.addProperty("version",net.neoforged.fml.ModList.get().getModContainerById("pixelmcmanager").map(c->c.getModInfo().getVersion().toString()).orElse("unknown"));snapshot.addProperty("minecraft","1.21.1");snapshot.addProperty("java",System.getProperty("java.version"));snapshot.addProperty("maxHeap",Runtime.getRuntime().maxMemory()/1073741824d);snapshot.addProperty("heapCommitted",Runtime.getRuntime().totalMemory()/1073741824d);snapshot.addProperty("limit",server.getMaxPlayers());snapshot.addProperty("saveBytes",saveBytes);snapshot.addProperty("storageAt",storageAt);snapshot.add("players",people);snapshot.add("extensions",ManagerBridgeApi.extensions());snapshot.add("foodCompatibility",foodBook.capability());snapshot.addProperty("bridgeStatus",status);snapshot.addProperty("tickIndex",tickIndex);
         JsonObject metric=new JsonObject();metric.addProperty("at",now);metric.addProperty("tps",tps);metric.addProperty("mspt",mspt);MemoryUsage memory=ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();metric.addProperty("heap",memory.getUsed()/1073741824d);long gcCount=0,gcMs=0;for(GarbageCollectorMXBean gc:ManagementFactory.getGarbageCollectorMXBeans()){gcCount+=Math.max(0,gc.getCollectionCount());gcMs+=Math.max(0,gc.getCollectionTime());}metric.addProperty("gcCount",gcCount);metric.addProperty("gcMillis",gcMs);packet.add("metric",metric);snapshot.add("metric",metric);snapshot.addProperty("nonHeapMb",ManagementFactory.getMemoryMXBean().getNonHeapMemoryUsage().getUsed()/1048576d);snapshot.add("gcNames",JSON.toJsonTree(ManagementFactory.getGarbageCollectorMXBeans().stream().map(GarbageCollectorMXBean::getName).toList()));
         JsonArray worlds=new JsonArray();Map<String,Path> paths=new LinkedHashMap<>();for(ServerLevel level:server.getAllLevels()){String id=level.dimension().location().toString();JsonObject w=new JsonObject();w.addProperty("code",id);w.addProperty("name",switch(id){case "minecraft:overworld"->"主世界";case "minecraft:the_nether"->"下界";case "minecraft:the_end"->"末地";default->id;});w.addProperty("chunks",level.getChunkSource().getLoadedChunksCount());int strong=strong(level);w.addProperty("strong",strong);w.addProperty("weak",Math.max(0,level.getChunkSource().getLoadedChunksCount()-strong));w.addProperty("forced",level.getForcedChunks().size());w.addProperty("players",level.players().size());w.addProperty("entities",entities(level));w.addProperty("gameTime",level.getDayTime());w.addProperty("time",id.equals("minecraft:overworld")?"第 "+(level.getDayTime()/24000)+" 天":"—");w.addProperty("weather",level.isThundering()?"雷雨":level.isRaining()?"雨":"晴朗");double[] timing=levelTimings.get(id);JsonObject performance=new JsonObject();if(timing!=null&&timing[1]>0){double avg=timing[0]/timing[1];performance.addProperty("tickMs",avg);performance.addProperty("share",mspt>0?100*avg/mspt:0);performance.addProperty("windowSeconds",1);var samples=dimensionSamples.computeIfAbsent(id,k->new ArrayDeque<>());samples.add(avg);while(samples.size()>60)samples.remove();var sorted=samples.stream().mapToDouble(Double::doubleValue).sorted().toArray();performance.addProperty("sampleCount",sorted.length);performance.addProperty("mean60",Arrays.stream(sorted).average().orElse(0));performance.addProperty("p95Seconds60",sorted[Math.max(0,(int)Math.ceil(sorted.length*.95)-1)]);performance.addProperty("maxSeconds60",sorted[sorted.length-1]);}w.add("performance",performance);JsonObject s=storage.get(id);w.add("storage",s==null?new JsonObject():s.deepCopy());worlds.add(w);paths.put(id,net.minecraft.world.level.dimension.DimensionType.getStorageFolder(level.dimension(),server.getWorldPath(LevelResource.ROOT)));}snapshot.add("worlds",worlds);
-        collectGc(snapshot);snapshot.addProperty("lostFrames",lostFrames);snapshot.addProperty("modCount",net.neoforged.fml.ModList.get().size());snapshot.addProperty("loader","NeoForge");snapshot.addProperty("loaderVersion",net.neoforged.neoforge.internal.versions.neoforge.NeoForgeVersion.getVersion());snapshot.addProperty("neoforge",net.neoforged.neoforge.internal.versions.neoforge.NeoForgeVersion.getVersion());snapshot.addProperty("environment",System.getenv("MCSM_INSTANCE_UUID")!=null?"MCSM":System.getenv("container")!=null?"Docker":"独立游戏进程");snapshot.add("management",management());packet.add("snapshot",snapshot);latest.set(packet);if(!frames.offer(packet))lostFrames++;
+        collectGc(snapshot);snapshot.addProperty("lostFrames",lostFrames);snapshot.addProperty("modCount",net.neoforged.fml.ModList.get().size());snapshot.addProperty("loader","NeoForge");snapshot.addProperty("loaderVersion",net.neoforged.neoforge.internal.versions.neoforge.NeoForgeVersion.getVersion());snapshot.addProperty("neoforge",net.neoforged.neoforge.internal.versions.neoforge.NeoForgeVersion.getVersion());snapshot.addProperty("environment",System.getenv("MCSM_INSTANCE_UUID")!=null?"MCSM":System.getenv("container")!=null?"Docker":"独立游戏进程");snapshot.add("management",management());snapshot.add("mobileConsole",mobileConsole.snapshot());snapshot.addProperty("mobileApi",1);JsonObject control=new JsonObject();control.addProperty("lease",mobileLease);control.addProperty("expiresAt",mobileHoldUntil);snapshot.add("mobileControl",control);packet.add("snapshot",snapshot);latest.set(packet);if(!frames.offer(packet))lostFrames++;
         if(now>=nextDisk){nextDisk=now+1800000;Path root=server.getWorldPath(LevelResource.ROOT);disk.execute(()->scan(paths,root));}
     }
-    private JsonObject management(){JsonObject result=new JsonObject();result.add("welcome",JSON.toJsonTree(config.getConfig()));result.add("announcements",JSON.toJsonTree(config.getConfig().announcements));result.addProperty("autoRestart",config.getConfig().restart.restartOnModChange);result.addProperty("restartStatus",restart.status());result.add("maintenance",JSON.toJsonTree(maintenance.getStatusSnapshot()));result.add("stop",JSON.toJsonTree(stop.getCurrentPlanSnapshot().orElse(null)));return result;}
+    private JsonObject management(){JsonObject result=new JsonObject();result.add("welcome",JSON.toJsonTree(config.getConfig()));result.add("announcements",JSON.toJsonTree(config.getConfig().announcements));result.addProperty("autoRestart",config.getConfig().restart.restartOnModChange);result.addProperty("restartStatus",restart.status());result.add("restart",restart.mobileState());result.add("maintenance",JSON.toJsonTree(maintenance.getStatusSnapshot()));result.add("stop",JSON.toJsonTree(stop.getCurrentPlanSnapshot().orElse(null)));return result;}
     private void scan(Map<String,Path> paths,Path root){try{Map<String,JsonObject> out=new LinkedHashMap<>();for(var entry:paths.entrySet()){JsonObject s=new JsonObject();s.addProperty("path",root.toAbsolutePath().normalize().relativize(entry.getValue().toAbsolutePath().normalize()).toString());long total=0;for(String name:List.of("region","entities","poi")){long[] values=bytes(entry.getValue().resolve(name));s.addProperty(name.equals("region")?"terrainBytes":name.equals("entities")?"entityBytes":"poiBytes",values[0]);if(name.equals("region"))s.addProperty("regionFileCount",values[1]);total+=values[0];}s.addProperty("otherBytes",0);s.addProperty("totalBytes",total);s.addProperty("sampledAt",System.currentTimeMillis());out.put(entry.getKey(),s);}storage=Map.copyOf(out);saveBytes=bytes(root)[0];storageAt=System.currentTimeMillis();}catch(Exception e){PixelMCManager.LOGGER.warn("Manager disk sample deferred: {}",e.getClass().getSimpleName());}}
     private static long[] bytes(Path path)throws Exception{long[] result={0,0};if(!Files.exists(path))return result;Files.walkFileTree(path,new SimpleFileVisitor<>(){int count;@Override public FileVisitResult visitFile(Path file,BasicFileAttributes a)throws java.io.IOException{if(Thread.currentThread().isInterrupted())return FileVisitResult.TERMINATE;if(a.isRegularFile()){result[0]+=a.size();result[1]++;}if(++count%256==0)try{Thread.sleep(5);}catch(InterruptedException e){Thread.currentThread().interrupt();return FileVisitResult.TERMINATE;}return FileVisitResult.CONTINUE;}});return result;}
     private static void atomic(Path path,String value)throws Exception{Path tmp=path.resolveSibling(path.getFileName()+".tmp");Files.writeString(tmp,value);try{Files.move(tmp,path,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}catch(AtomicMoveNotSupportedException e){Files.move(tmp,path,StandardCopyOption.REPLACE_EXISTING);}}
     private synchronized void pump(){if(bridge==null||!bridge.enabled||world.isEmpty())return;try{
         JsonObject login;while((login=loginQueue.poll())!=null){pendingLogins.add(login);journalDirty=true;}if(journalDirty){atomic(folder.resolve("pending-logins.json"),JSON.toJson(pendingLogins));journalDirty=false;}
         JsonObject frame;while((frame=frames.poll())!=null)spool.append(frame,System.currentTimeMillis());JsonObject newest=latest.getAndSet(null);if(newest!=null){current=newest;freshPending=true;}
-        if((needHello&&inflight==null)||archive.isEmpty()){JsonObject hello=new JsonObject();hello.addProperty("runId",run);hello.addProperty("worldId",world);hello.addProperty("startedAt",startedAt);JsonObject info=current==null?new JsonObject():current.getAsJsonObject("snapshot").deepCopy();info.add("extensions",ManagerBridgeApi.extensions());hello.add("info",info);JsonObject response=request("hello",hello);try{if(playerHubScope!=null)playerHubScope.hello(response);}catch(Exception cacheFailure){PixelMCManager.LOGGER.warn("Manager player metadata cache is unavailable: {}",cacheFailure.getClass().getSimpleName());}platformStorage=response.has("platformStorage")?response.get("platformStorage").getAsInt():0;needHello=false;url=response.get("publicUrl").getAsString();archive=response.has("archiveId")?response.get("archiveId").getAsString():"";if(archive.isEmpty()){status="binding-required";return;}}
+        if((needHello&&inflight==null)||archive.isEmpty()){JsonObject hello=new JsonObject();hello.addProperty("runId",run);hello.addProperty("worldId",world);hello.addProperty("startedAt",startedAt);JsonObject info=current==null?new JsonObject():current.getAsJsonObject("snapshot").deepCopy();info.add("extensions",ManagerBridgeApi.extensions());hello.add("info",info);JsonObject response=request("hello",hello);playerHubCapability=response.has("playerHubApi")?response.get("playerHubApi").getAsInt():0;rankingsRevision(response);updatesRevision(response);communityRevision(response);try{if(playerHubScope!=null)playerHubScope.hello(response);}catch(Exception cacheFailure){PixelMCManager.LOGGER.warn("Manager player metadata cache is unavailable: {}",cacheFailure.getClass().getSimpleName());}platformStorage=response.has("platformStorage")?response.get("platformStorage").getAsInt():0;needHello=false;url=response.get("publicUrl").getAsString();archive=response.has("archiveId")?response.get("archiveId").getAsString():"";if(archive.isEmpty()){status="binding-required";return;}}
         if(inflight==null&&current!=null&&freshPending){freshPending=false;inflight=current.deepCopy();inflight.addProperty("runId",run);inflight.addProperty("archiveId",archive);inflight.addProperty("seq",++seq);inflight.add("logins",head(pendingLogins,512));JsonObject samples=spool.batch();inflight.add("longTicks",samples.get("longTicks"));inflight.add("metrics",samples.get("metrics"));JsonArray acks=new JsonArray();JsonObject ack;while((ack=ackQueue.poll())!=null&&acks.size()<32)acks.add(ack);inflight.add("acks",acks);}
-        if(inflight!=null){JsonObject response=request("snapshot",inflight);if(response.get("ack").getAsLong()>=inflight.get("seq").getAsLong()){remove(pendingLogins,inflight.getAsJsonArray("logins").size());spool.acknowledge();atomic(folder.resolve("pending-logins.json"),JSON.toJson(pendingLogins));if(inflight.has("stopped")&&inflight.get("stopped").getAsBoolean())finalized=true;inflight=null;status="connected";}for(JsonElement v:response.getAsJsonArray("commands"))dispatch(v.getAsJsonObject());}
-    }catch(Exception e){status="disconnected";needHello=true;platformStorage=0;if(playerHubScope!=null)playerHubScope.disconnected();}}
+        if(inflight!=null){JsonObject response=request("snapshot",inflight);rankingsRevision(response);updatesRevision(response);communityRevision(response);if(response.get("ack").getAsLong()>=inflight.get("seq").getAsLong()){remove(pendingLogins,inflight.getAsJsonArray("logins").size());spool.acknowledge();atomic(folder.resolve("pending-logins.json"),JSON.toJson(pendingLogins));if(inflight.has("stopped")&&inflight.get("stopped").getAsBoolean())finalized=true;inflight=null;status="connected";}for(JsonElement v:response.getAsJsonArray("commands"))dispatch(v.getAsJsonObject());}
+    }catch(Exception e){status="disconnected";needHello=true;platformStorage=0;playerHubCapability=0;playerHubRevision="";rankingsCapability=0;rankingsTokens.clear();if(playerHubScope!=null)playerHubScope.disconnected();}}
     private JsonObject current;
     private boolean freshPending;
     private static JsonArray head(ArrayDeque<JsonObject> queue,int max){JsonArray out=new JsonArray();for(JsonObject v:queue){if(out.size()>=max)break;out.add(v);}return out;}
     private static void remove(ArrayDeque<JsonObject> queue,int count){for(int i=0;i<count&&!queue.isEmpty();i++)queue.remove();}
-    private JsonObject request(String op,JsonObject body)throws Exception{HttpRequest req=HttpRequest.newBuilder(URI.create(bridge.baseUrl+"/bridge/"+op)).timeout(Duration.ofSeconds(4)).header("Content-Type","application/json").header("X-PixelMC-Instance",bridge.instanceId).header("Authorization","Bearer "+bridge.token).POST(HttpRequest.BodyPublishers.ofString(JSON.toJson(body))).build();HttpResponse<String> response=http.send(req,HttpResponse.BodyHandlers.ofString());if(response.statusCode()!=200||response.body().length()>8*1024*1024)throw new IllegalStateException("Bridge HTTP "+response.statusCode());return JsonParser.parseString(response.body()).getAsJsonObject();}
-    public CompletableFuture<String> rpc(String extension,String method,String json){CompletableFuture<String> future=new CompletableFuture<>();try{rpc.execute(()->{try{if(bridge==null||!bridge.enabled)throw new IllegalStateException("Manager bridge disabled");if(ManagerBridgeApi.requiresPlatform(extension)&&platformStorage!=1)throw new IllegalStateException("Manager Service 0.6.0 unified storage is required; upgrade/migrate the web service first");JsonObject data=JsonParser.parseString(json).getAsJsonObject(),body=new JsonObject();body.addProperty("extension",extension);body.addProperty("op",method);body.add("data",data);if(method.equals("platform")&&data.has("player")&&data.has("op")&&data.get("op").getAsString().equals("avatars.upload")){UUID id=UUID.fromString(data.get("player").getAsString());if(!admitted(id))throw new SecurityException("Player admission not confirmed");body.addProperty("playerProof",id.toString());}if(extension.equals("dailyfortunes")||method.equals("login")||method.equals("setUnequippedReminder")||(extension.equals("memorialtitles")&&method.equals("playerHub"))){UUID id=UUID.fromString(data.getAsJsonArray("args").get(0).getAsString());if(!admitted(id))throw new SecurityException("Player admission not confirmed");body.addProperty("playerProof",id.toString());}JsonObject response=request("rpc",body);future.complete(method.equals("playerHub")?response.toString():JSON.toJson(response));}catch(Exception e){future.completeExceptionally(e);}});}catch(RejectedExecutionException e){future.completeExceptionally(new IllegalStateException("Extension queue is full"));}return future;}
+    // Community patches use explicit JSON null to clear a selected object.
+    static String requestBody(String op,JsonObject body){return op.equals("rpc")&&body.has("extension")&&body.get("extension").getAsString().equals("playerhub")&&body.has("op")&&body.get("op").getAsString().equals("community")?body.toString():JSON.toJson(body);}
+    private JsonObject request(String op,JsonObject body)throws Exception{HttpRequest req=HttpRequest.newBuilder(URI.create(bridge.baseUrl+"/bridge/"+op)).timeout(Duration.ofSeconds(4)).header("Content-Type","application/json").header("X-PixelMC-Instance",bridge.instanceId).header("Authorization","Bearer "+bridge.token).POST(HttpRequest.BodyPublishers.ofString(requestBody(op,body))).build();HttpResponse<String> response=http.send(req,HttpResponse.BodyHandlers.ofString());if(response.statusCode()!=200||response.body().length()>8*1024*1024)throw new IllegalStateException("Bridge HTTP "+response.statusCode());return JsonParser.parseString(response.body()).getAsJsonObject();}
+    /** A committed-change token rides the existing bridge response; no extra scan or timer. */
+    private void rankingsRevision(JsonObject response) {
+        if(response.has("leaderboardsApi"))rankingsCapability=response.get("leaderboardsApi").getAsInt();
+        if(!response.has("leaderboardsRevisions") || !response.get("leaderboardsRevisions").isJsonObject())return;
+        JsonObject versions=response.getAsJsonObject("leaderboardsRevisions");
+        List<String> boards=List.of("food","fortunes","online");int mask=0;
+        for(int index=0;index<boards.size();index++) {
+            String board=boards.get(index);
+            if(!versions.has(board) || !versions.get(board).isJsonPrimitive())continue;
+            String revision=versions.get(board).getAsString();
+            if(revision.length()>160 || revision.equals(rankingsTokens.get(board)))continue;
+            rankingsTokens.put(board,revision);mask|=1<<index;
+        }
+        if(mask==0)return;
+        MinecraftServer target=server;long generation=runtimeGeneration;int changed=mask;
+        if(target==null)return;
+        target.execute(()->{
+            if(!runtimeCurrent(generation) || server!=target)return;
+            try {
+                Class.forName("com.pixelmc.hub.network.HubNetwork")
+                        .getMethod("rankingsChanged",MinecraftServer.class,int.class).invoke(null,target,changed);
+            } catch(ClassNotFoundException absent) {
+                // Hub is optional.
+            } catch(ReflectiveOperationException | LinkageError incompatible) {
+                PixelMCManager.LOGGER.debug("Hub leaderboard notification is unavailable");
+            }
+        });
+    }
+    private void communityRevision(JsonObject response){
+        if(response.has("communityApi"))communityCapability=response.get("communityApi").getAsInt();
+        if(!response.has("communityRevision")||!response.get("communityRevision").isJsonPrimitive())return;
+        String revision=response.get("communityRevision").getAsString();
+        if(revision.length()>160||revision.equals(communityRevision))return;
+        communityRevision=revision;MinecraftServer target=server;long generation=runtimeGeneration;
+        if(target==null||stopping)return;
+        target.execute(()->{
+            if(!runtimeCurrent(generation)||server!=target||stopping)return;
+            try{Class.forName("com.pixelmc.hub.network.HubNetwork").getMethod("communityChanged",MinecraftServer.class).invoke(null,target);}
+            catch(ClassNotFoundException absent){/* Hub is optional. */}
+            catch(ReflectiveOperationException|LinkageError incompatible){PixelMCManager.LOGGER.debug("Optional community change hint unavailable");}
+        });
+    }
+    private void updatesRevision(JsonObject response){
+        if(!response.has("playerHubRevision")||!response.get("playerHubRevision").isJsonPrimitive())return;
+        String revision=response.get("playerHubRevision").getAsString();
+        if(revision.length()>160||revision.equals(playerHubRevision))return;
+        playerHubRevision=revision;MinecraftServer target=server;long generation=runtimeGeneration;
+        if(target==null||stopping)return;
+        target.execute(()->{
+            if(!runtimeCurrent(generation)||server!=target||stopping)return;
+            try{Class.forName("com.pixelmc.hub.network.HubNetwork").getMethod("updatesChanged",MinecraftServer.class).invoke(null,target);}
+            catch(ClassNotFoundException absent){/* Hub is optional; Manager remains server-only. */}
+            catch(ReflectiveOperationException|LinkageError incompatible){PixelMCManager.LOGGER.debug("Optional Hub changelog change hint unavailable: {}",incompatible.getClass().getSimpleName());}
+        });
+    }
+    private synchronized CompletableFuture<String> queueRanking(RankingRead read) {
+        if(stopping || rankingReads.size()>=128) {
+            read.future.completeExceptionally(new IllegalStateException("排行请求繁忙，请稍后重试"));
+            return read.future;
+        }
+        rankingReads.addLast(read);
+        scheduleRankingDrain();
+        return read.future;
+    }
+    private synchronized void scheduleRankingDrain() {
+        if(rankingDrainScheduled || rankingReads.isEmpty())return;
+        rankingDrainScheduled=true;
+        try { io.schedule(()->{
+            try { rpc.execute(this::drainRankings); }
+            catch(RejectedExecutionException busy) { clearRankingReads(); }
+        },160,TimeUnit.MILLISECONDS); }
+        catch(RejectedExecutionException stopped) { clearRankingReads(); }
+    }
+    private synchronized void clearRankingReads() {
+        while(!rankingReads.isEmpty())rankingReads.removeFirst().future.completeExceptionally(
+                new IllegalStateException("排行连接已关闭，请重新打开页面"));
+        rankingDrainScheduled=false;
+    }
+    private boolean currentRanking(RankingRead read) {
+        return runtimeCurrent(read.generation) && read.session!=null && admitted(read.player)
+                && read.session.equals(playerHubSession(read.player));
+    }
+    /** Coalesce simultaneous viewers into one authenticated request, without polling. */
+    private void drainRankings() {
+        List<RankingRead> batch=new ArrayList<>();
+        synchronized(this) {
+            while(batch.size()<32 && !rankingReads.isEmpty())batch.add(rankingReads.removeFirst());
+        }
+        List<RankingRead> active=new ArrayList<>();
+        try {
+            JsonArray requests=new JsonArray();
+            for(RankingRead read:batch) {
+                if(!currentRanking(read)) {
+                    read.future.completeExceptionally(new IllegalStateException("玩家会话已失效，请重新连接"));
+                    continue;
+                }
+                JsonObject item=new JsonObject();item.addProperty("playerProof",read.player.toString());
+                item.add("data",read.data);requests.add(item);active.add(read);
+            }
+            if(active.isEmpty())return;
+            if(bridge==null || !bridge.enabled || platformStorage!=1 || rankingsCapability!=1)
+                throw new IllegalStateException("排行服务暂不可用");
+            JsonObject data=new JsonObject();data.add("requests",requests);
+            JsonObject body=new JsonObject();body.addProperty("extension","playerhub");
+            body.addProperty("op","rankingsBatch");body.add("data",data);
+            JsonObject response=request("rpc",body);
+            JsonArray results=response.getAsJsonArray("results");
+            if(results==null || results.size()!=active.size())throw new IllegalStateException("排行响应无效");
+            for(int index=0;index<active.size();index++) {
+                RankingRead read=active.get(index);
+                if(currentRanking(read))read.future.complete(results.get(index).toString());
+                else read.future.completeExceptionally(new IllegalStateException("玩家会话已失效，请重新连接"));
+            }
+        } catch(Exception unavailable) {
+            for(RankingRead read:batch)read.future.completeExceptionally(unavailable);
+        } finally {
+            synchronized(this) { rankingDrainScheduled=false;scheduleRankingDrain(); }
+        }
+    }
+    private Long playerHubSession(UUID player){var snapshot=stats.hubSnapshot(player,System.currentTimeMillis());return snapshot==null?null:snapshot.session();}
+    public CompletableFuture<String> rpc(String extension,String method,String json){
+        CompletableFuture<String> future=new CompletableFuture<>();long generation=runtimeGeneration;
+        final JsonObject data;final UUID hubPlayer;final Long hubSession;
+        try{data=JsonParser.parseString(json).getAsJsonObject();hubPlayer=extension.equals("playerhub")&&Set.of("playerHub","rankings","community").contains(method)?UUID.fromString(data.getAsJsonArray("args").get(0).getAsString()):null;hubSession=hubPlayer==null?null:playerHubSession(hubPlayer);}
+        catch(RuntimeException invalid){return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid extension request"));}
+        if(extension.equals("playerhub") && method.equals("rankings"))
+            return queueRanking(new RankingRead(hubPlayer,hubSession,generation,data,future));
+        try{rpc.execute(()->{try{
+            if(!runtimeCurrent(generation)||bridge==null||!bridge.enabled)throw new IllegalStateException("Manager bridge is not connected");
+            if(ManagerBridgeApi.requiresPlatform(extension)&&platformStorage!=1)throw new IllegalStateException("Manager unified storage unavailable");
+            if(hubPlayer!=null&&(hubSession==null||!hubSession.equals(playerHubSession(hubPlayer))||!admitted(hubPlayer)))throw new SecurityException("Player session expired");
+            JsonObject body=new JsonObject();body.addProperty("extension",extension);body.addProperty("op",method);body.add("data",data);
+            if(method.equals("platform")&&data.has("player")&&data.has("op")&&data.get("op").getAsString().equals("avatars.upload")){
+                UUID id=UUID.fromString(data.get("player").getAsString());if(!admitted(id))throw new SecurityException("Player admission not confirmed");body.addProperty("playerProof",id.toString());
+            }
+            if(extension.equals("dailyfortunes")||method.equals("login")||method.equals("setUnequippedReminder")||((extension.equals("memorialtitles")||extension.equals("playerhub"))&&method.equals("playerHub"))||(extension.equals("playerhub")&&Set.of("rankings","community").contains(method))){
+                UUID id=UUID.fromString(data.getAsJsonArray("args").get(0).getAsString());if(!admitted(id))throw new SecurityException("Player admission not confirmed");body.addProperty("playerProof",id.toString());
+            }
+            JsonObject response=request("rpc",body);
+            if(hubPlayer!=null&&(!runtimeCurrent(generation)||!hubSession.equals(playerHubSession(hubPlayer))||!admitted(hubPlayer)))throw new SecurityException("Player session expired");
+            future.complete(Set.of("playerHub","rankings","community").contains(method)?response.toString():JSON.toJson(response));
+        }catch(Exception e){future.completeExceptionally(e);}});}
+        catch(RejectedExecutionException e){future.completeExceptionally(new IllegalStateException("Extension queue is full"));}
+        return future;
+    }
     private void dispatch(JsonObject command){String id=command.get("id").getAsString();JsonObject done=completed.get(id);if(done!=null){ackQueue.add(done);return;}if(!executing.add(id))return;MinecraftServer target=server;long generation=runtimeGeneration;if(target==null)return;target.execute(()->{if(!runtimeCurrent(generation)||server!=target)return;JsonObject ack=new JsonObject();ack.addProperty("id",id);try{if(command.get("expiresAt").getAsLong()<System.currentTimeMillis())throw new IllegalStateException("操作已过期");String op=command.get("op").getAsString();JsonObject payload=JsonParser.parseString(command.get("payload").getAsString()).getAsJsonObject();String message=execute(op,payload);ack.addProperty("ok",true);ack.addProperty("result",message);if(Set.of("welcome","announcements","autoRestart").contains(op)){String serialized=config.snapshotJson();io.execute(()->{try{config.saveSnapshot(serialized);}catch(Exception failure){ack.addProperty("ok",false);ack.addProperty("result","配置已在内存应用，但写盘失败，请检查权限并保存配置");}finish(id,ack);});return;}}catch(Exception e){ack.addProperty("ok",false);ack.addProperty("result",Objects.toString(e.getMessage(),"操作未完成"));}finish(id,ack);});}
     private void finish(String id,JsonObject ack){if(completed.size()>512)completed.clear();completed.put(id,ack);executing.remove(id);ackQueue.add(ack);}
     private String execute(String op,JsonObject p)throws Exception{return switch(op){
+        case "console"->mobileConsole.execute(server,p.get("command").getAsString());
+        case "save"->mobileConsole.execute(server,"pixelmcmanager save");
+        case "announce"->{String message=p.get("message").getAsString().strip();if(message.isEmpty()||message.length()>200||message.contains("\n")||message.contains("\r"))throw new IllegalArgumentException("公告须为1至200字的单行文本");server.getPlayerList().broadcastSystemMessage(net.minecraft.network.chat.Component.literal("[公告] "+message),false);mobileConsole.add("command","发送公告："+message);mobileConsole.add("result","公告已发送");yield "公告已发送";}
+        case "kick"->{UUID id=UUID.fromString(p.get("player").getAsString());ServerPlayer player=server.getPlayerList().getPlayer(id);if(player==null)throw new IllegalStateException("玩家已离线");player.connection.disconnect(net.minecraft.network.chat.Component.literal("管理员已将你移出服务器。"));yield "已移出玩家";}
+        case "process.prepare"->{
+            String lease=UUID.fromString(p.get("lease").getAsString()).toString();
+            if(p.get("onlyIfEmpty").getAsBoolean()&&server.getPlayerCount()!=0)throw new IllegalStateException("服务器已有玩家，未执行启停");
+            restart.cancel();stop.cancel();mobileLease=lease;mobileHoldUntil=System.currentTimeMillis()+60000;
+            for(ServerPlayer player:List.copyOf(server.getPlayerList().getPlayers()))player.connection.disconnect(net.minecraft.network.chat.Component.literal("服务器正在执行启停操作，请稍后重连。"));
+            yield "启停保护已生效，等待MCSM执行";
+        }
+        case "process.release"->{if(p.get("lease").getAsString().equals(mobileLease)){mobileHoldUntil=0;mobileLease="";}yield "启停保护已解除";}
+
         case "extension.callback"->{ManagerBridgeApi.callback(p.get("extension").getAsString(),p.get("op").getAsString(),JSON.toJson(p.get("data")));yield "已通知扩展";}
         case "restart.schedule"->restart.schedule();case "restart.cancel"->restart.cancel();
         case "stop.schedule"->{int seconds=p.get("seconds").getAsInt();if(seconds<10||seconds>604800)throw new IllegalArgumentException("倒计时范围10秒至7天");yield stop.schedule(server,Duration.ofSeconds(seconds)).message();}
@@ -158,8 +343,8 @@ public final class BridgeAgent {
         case "welcome"->{WelcomeConfig next=JSON.fromJson(p,WelcomeConfig.class);next.normalize(PixelMCManager.LOGGER);WelcomeConfig live=config.getConfig();live.enabled=next.enabled;live.delayTicks=next.delayTicks;live.firstJoinMessages=next.firstJoinMessages;live.returningMessages=next.returningMessages;yield "问候语已保存";}
         case "announcements"->{AnnouncementConfig next=JSON.fromJson(p,AnnouncementConfig.class);next.normalize(PixelMCManager.LOGGER);config.getConfig().announcements=next;yield "轮播公告已保存";}
         default->throw new IllegalArgumentException("未注册的游戏操作");};}
-    public void stopping(MinecraftServer server){stopping=true;PlayerHubApi.attach(null,null,null);}
-    public void stopped(MinecraftServer server){if(bridge!=null&&bridge.enabled){try{io.submit(()->{pump();captureFinal();pump();}).get(5,TimeUnit.SECONDS);if(!finalized)PixelMCManager.LOGGER.warn("Manager final synchronization pending; archive remains locked");}catch(Exception e){PixelMCManager.LOGGER.warn("Manager final synchronization was not acknowledged; archive remains locked");}}stopWorkers();admitted.clear();ManagerBridgeApi.attach(null);PlayerHubApi.attach(null,null,null);
+    public void stopping(MinecraftServer server){stopping=true;PlayerHubApi.attach(null,null,null);PlayerHubUpdatesApi.attach(null,null,null);com.pixelmc.pixelmcmanager.api.PlayerHubCommunityApi.attach(null,null,null);com.pixelmc.pixelmcmanager.api.PlayerHubRankingsApi.attach(null,null,null);}
+    public void stopped(MinecraftServer server){if(bridge!=null&&bridge.enabled){try{io.submit(()->{pump();captureFinal();pump();}).get(5,TimeUnit.SECONDS);if(!finalized)PixelMCManager.LOGGER.warn("Manager final synchronization pending; archive remains locked");}catch(Exception e){PixelMCManager.LOGGER.warn("Manager final synchronization was not acknowledged; archive remains locked");}}stopWorkers();admitted.clear();ManagerBridgeApi.attach(null);PlayerHubApi.attach(null,null,null);PlayerHubUpdatesApi.attach(null,null,null);com.pixelmc.pixelmcmanager.api.PlayerHubCommunityApi.attach(null,null,null);com.pixelmc.pixelmcmanager.api.PlayerHubRankingsApi.attach(null,null,null);
         try{if(com.pixelmc.pixelmcmanager.compat.BackgroundExecutorShutdown.closeMca(getClass().getClassLoader()))PixelMCManager.LOGGER.info("MCA background executor shutdown requested after server stopped; queued tasks may finish normally");}catch(ReflectiveOperationException|RuntimeException failure){PixelMCManager.LOGGER.warn("Optional MCA shutdown integration unavailable: {}",failure.getClass().getSimpleName());}
     }
     private void captureFinal(){if(current!=null){JsonObject end=current.deepCopy();end.addProperty("stopped",true);end.addProperty("at",System.currentTimeMillis());JsonArray all=new JsonArray();for(PlayerStatsEntry e:stats.listAll()){JsonObject p=JSON.toJsonTree(e.stats()).getAsJsonObject();p.addProperty("id",e.uuid().toString());all.add(p);}end.add("stats",all);end.add("players",new JsonArray());end.getAsJsonObject("snapshot").add("players",new JsonArray());latest.set(end);}}
