@@ -1,14 +1,17 @@
 package com.pixelmc.pixelmcmanager.api;
 
+import static com.pixelmc.pixelmcmanager.api.GameplayData.*;
+
 import com.google.gson.*;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.server.ServerLifecycleHooks;
 import net.minecraftforge.fml.ModList;
-import static com.pixelmc.pixelmcmanager.api.GameplayData.*;
+import net.minecraftforge.server.ServerLifecycleHooks;
+
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 /** Player-scoped, read-only server capability. No HTTP or client dependency. */
 public final class PlayerGameplayApi {
@@ -19,6 +22,7 @@ public final class PlayerGameplayApi {
                     "structure_generation",
                     "structure_chests",
                     "chest_sources",
+                    "event_outputs",
                     "trade_offers",
                     "merchant_offers",
                     "quest_search",
@@ -87,7 +91,12 @@ public final class PlayerGameplayApi {
                     || page < 1
                     || count < 1
                     || !validView(action, view)) return reply("invalid_request", "目标、数量、筛选或页码无效。");
-            if (Set.of("shop_item", "quest_rewards", "chest_sources", "structure_chests")
+            if (Set.of(
+                                    "shop_item",
+                                    "quest_rewards",
+                                    "chest_sources",
+                                    "structure_chests",
+                                    "event_outputs")
                             .contains(action)
                     && (!target.contains(":") || ResourceLocation.tryParse(target) == null))
                 return reply("invalid_request", "请提供完整的注册 ID。");
@@ -134,6 +143,7 @@ public final class PlayerGameplayApi {
 
     private static boolean validView(String kind, String view) {
         if (view.isEmpty()) return true;
+        if (kind.equals("event_outputs")) return view.matches("[a-z][a-z0-9_]{0,63}");
         if (kind.equals("food_book_stats")) return view.equals("global");
         return (kind.equals("shop_entries") || kind.equals("shop_item"))
                 && Set.of("buy", "sell", "unlocked", "locked", "buyable").contains(view);
@@ -148,6 +158,7 @@ public final class PlayerGameplayApi {
             int quantity,
             int page)
             throws ReflectiveOperationException {
+        if (kind.equals("event_outputs")) return EventOutputs.read(target, view, page);
         if (kind.startsWith("structure_") || kind.equals("chest_sources"))
             return StructureGameplay.read(server, kind, target, page);
         var r =

@@ -14,7 +14,7 @@
 Fabric 1.20.1 / 1.21.1 / 26.1.2 / 26.2 位于独立的 [Fabric 仓库](https://github.com/PixelMC-Projects/pixelmcmanager-fabric)。各加载器共用最新的 [0.6.0.web.2 独立网页服务](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.0.web.2)。
 Fabric builds stay in the separate Fabric repository. All loaders share the latest independent web service linked above.
 
-Forge 1.20.1 的 0.9.1-dev 源码候选提供只读玩法接口，包括 FTB 任务、SDM 商店、食物手册、结构、交易、领地及容器。能力、身份范围和分页字段见[模组接口规范](docs/模组接口规范.md)。
+Forge 1.20.1 的 0.9.2-dev 源码候选提供只读玩法接口，包括 FTB 任务、SDM 商店、食物手册、跨模组事件产物、结构、交易、领地及容器。能力、身份范围和分页字段见[模组接口规范](docs/模组接口规范.md)。
 
 ## 中文
 
