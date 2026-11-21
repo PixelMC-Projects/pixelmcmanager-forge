@@ -29,10 +29,16 @@ public final class PlayerHubApi {
     private record RuntimeContext(PlayerStatsStore stats, Predicate<UUID> admitted,
                                   Supplier<JsonObject> scope, Map<UUID, Long> requests) { }
 
+    static boolean gameplayAdmitted(UUID id) {
+        RuntimeContext current = runtime;
+        return current != null && current.admitted.test(id);
+    }
+
     public static int protocolVersion() { return 1; }
 
     /** Internal lifecycle hook; no HTTP credentials or administrative transport enter this API. */
     public static void attach(PlayerStatsStore stats, Predicate<UUID> admitted, Supplier<JsonObject> scope) {
+        StructureGameplay.clear();
         runtime = stats == null ? null : new RuntimeContext(stats, admitted, scope, new HashMap<>());
     }
 

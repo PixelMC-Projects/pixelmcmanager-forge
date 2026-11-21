@@ -31,7 +31,7 @@ public final class FoodBookCompat {
     private final Set<UUID> pending = new LinkedHashSet<>();
     private final Set<UUID> failed = new LinkedHashSet<>();
     private volatile MinecraftServer server;
-    private Access access;
+    private static volatile Access access;
     private boolean installed;
     private String version = "";
 
@@ -92,6 +92,13 @@ public final class FoodBookCompat {
         if (sample != null && sample.owner == player) stats.addProperty("effectiveFoods", sample.count);
     }
 
+    public static int effectiveCount(Object foods) throws ReflectiveOperationException {
+        Access current = access;
+        if (current == null) throw new IllegalStateException("Food book is unavailable");
+        current.invalidate.invoke(foods);
+        return current.foodsEaten.getInt(current.progress.invoke(foods));
+    }
+
     private void capture(UUID id) {
         if (access == null || server == null || !admitted.test(id)) return;
         ServerPlayer player = server.getPlayerList().getPlayer(id);
@@ -99,9 +106,7 @@ public final class FoodBookCompat {
         try {
             Object foods = access.get.invoke(null, player);
             // Match the book's shouldCount-filtered progress, including config/data-pack reloads.
-            access.invalidate.invoke(foods);
-            Object progress = access.progress.invoke(foods);
-            int count = access.foodsEaten.getInt(progress);
+            int count = effectiveCount(foods);
             if (count < 0) throw new IllegalStateException("Invalid effective food count");
             samples.put(id, new Sample(player, count));
             failed.remove(id);
