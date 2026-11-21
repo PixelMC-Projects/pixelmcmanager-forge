@@ -140,14 +140,27 @@ def titlesRoot = providers.gradleProperty('memorialTitlesDir').map { file(it) }.
 def titlesSource = new File(titlesRoot, 'src/main/java')
 def fortunesRoot = providers.gradleProperty('dailyFortunesDir').map { file(it) }.getOrElse(
         file('../DailyFortunes').exists() ? file('../DailyFortunes') : file('../../../DailyFortunes'))
+def wenzhouRoot = providers.gradleProperty('wenzhouAgentDir').map { file(it) }.getOrElse(
+        file('../WenZhou-Agent').exists() ? file('../WenZhou-Agent') : file('../../../WenZhou-Agent'))
+def wenzhouAdmin = new File(wenzhouRoot, 'admin-web')
 configurations { managerJdbc }
 dependencies { managerJdbc('org.mariadb.jdbc:mariadb-java-client:3.5.6') { transitive = false } }
 sourceSets {
     managerService {
-        java.srcDirs = ['manager-service/src/main/java', titlesSource, new File(fortunesRoot, 'src/main/java')]
+        java.srcDirs = ['manager-service/src/main/java', titlesSource, new File(fortunesRoot, 'src/main/java'),
+                        new File(wenzhouRoot, 'src/main/java'), new File(wenzhouRoot, 'manager-service/src/main/java')]
         java.include 'com/pixelmc/manager/service/**', 'cn/pixelmc/memorialtitles/domain/**',
                 'cn/pixelmc/memorialtitles/persistence/**', 'cn/pixelmc/memorialtitles/service/**',
                 'cn/pixelmc/memorialtitles/web/**', 'cn/pixelmc/memorialtitles/forge/ServerFiles.java', 'cn/pixelmc/dailyfortunes/service/**'
+        java.include 'com/pixelmc/wenzhouai/manager/WzAdminBackend.java',
+                'com/pixelmc/wenzhouai/manager/WzDirectory.java',
+                'com/pixelmc/wenzhouai/service/WzStoredAdmin.java',
+                'com/pixelmc/wenzhouai/service/WzSettings.java',
+                'com/pixelmc/wenzhouai/service/WzHistory.java',
+                'com/pixelmc/wenzhouai/service/WzThreadUsage.java',
+                'com/pixelmc/wenzhouai/service/WzProtocolText.java',
+                'com/pixelmc/wenzhouai/service/WzData.java',
+                'com/pixelmc/wenzhouai/service/WzCredential.java'
         compileClasspath = files(restartGson) + configurations.managerJdbc
         runtimeClasspath = output + compileClasspath
     }
@@ -169,11 +182,18 @@ tasks.register('buildManagerWeb', Exec) {
     dependsOn 'installManagerWeb'
     workingDir file('web-console')
     commandLine(System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm', 'run', 'build:manager')
+    environment 'WENZHOU_ADMIN_DIR', wenzhouAdmin.absolutePath
+    inputs.dir(new File(wenzhouAdmin, 'src'))
     inputs.files(fileTree('web-console/src'),fileTree('web-console/public'),'web-console/vite.config.mjs','web-console/package-lock.json')
     outputs.dir('web-console/dist/client')
 }
 tasks.named('processManagerServiceResources').configure {
     dependsOn 'buildManagerWeb'
+    from(wenzhouAdmin) {
+        include 'LICENSE', 'LICENSE-EXCEPTION.md', 'NOTICE.md'
+        into 'licenses/wenzhou-admin'
+    }
+    from(new File(wenzhouRoot, 'src/main/resources')) { include 'assets/wenzhouai/default-policy.json' }
     from('web-console/dist/client') { into 'web' }
     from(new File(titlesRoot, 'web-console/src/titlePresentationPresets.json'))
     from(new File(fortunesRoot, 'src/main/resources/defaults')) { into 'defaults' }

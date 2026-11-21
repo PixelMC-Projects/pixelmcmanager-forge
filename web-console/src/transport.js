@@ -2,10 +2,33 @@ import {useEffect,useState} from 'react';
 let csrf='';
 export class ApiError extends Error {constructor(message,status){super(message);this.status=status;}}
 export function setCsrf(value){csrf=value||'';}
-export async function request(path,body,options={}){
-  const response=await fetch('/api'+path,{credentials:'same-origin',signal:options.signal,method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json','X-CSRF-Token':csrf},...(body===undefined?{}:{body:JSON.stringify(body)})});
-  if(!response.ok){let error;try{error=await response.json();}catch{}if(response.status===401&&path!=='/login')window.dispatchEvent(new Event('manager-session-expired'));throw new ApiError(error?.error||`请求未完成 (${response.status})`,response.status);}
-  return options.raw?response:response.json();
+export function request(path, body, options) {
+  return send('/api' + path, body, options);
+}
+
+export function extensionRequest(extension, operation, body, signal) {
+  if (!/^[a-z][a-z0-9_-]*$/.test(extension) || !/^[a-z][a-z.]*$/.test(operation)) {
+    throw new Error('扩展接口名称无效');
+  }
+  return send('/extensions/' + extension + '/api/' + operation, body, {signal});
+}
+
+async function send(url, body, {signal, raw} = {}) {
+  const options = {credentials:'same-origin', signal};
+  if (body !== undefined) {
+    options.method = 'POST';
+    options.headers = {'Content-Type':'application/json', 'X-CSRF-Token':csrf};
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    if (response.status === 401 && url !== '/api/login') {
+      window.dispatchEvent(new Event('manager-session-expired'));
+    }
+    throw new ApiError(error?.error || '请求未完成 (' + response.status + ')', response.status);
+  }
+  return raw ? response : response.json();
 }
 export function useResource(path,interval=0){const [result,setResult]=useState({data:null,error:'',loading:true});
   useEffect(()=>{let active=true,timer;const abort=new AbortController();setResult({data:null,error:'',loading:!!path});if(!path)return;

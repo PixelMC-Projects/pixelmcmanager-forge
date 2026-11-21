@@ -8,9 +8,11 @@ import "./playerRoster.css";
 import "./extensions.css";
 import "@fontsource-variable/inter";
 
+import WenzhouWorkspace from '@wenzhou-admin/Workspace.jsx';
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AuthRoot />
+    <AuthRoot WenzhouWorkspace={WenzhouWorkspace} />
   </React.StrictMode>,
 );
 

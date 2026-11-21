@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowCounterClockwise, ArrowRight, ArrowUpRight, BookBookmark, CaretDown, ChartLine, Check, Clock, Cube, Database, GearSix, Globe, House, Info, Lightning, List, Memory, Moon, Pause, Play, Robot, Sun, Users, WarningCircle, X } from '@phosphor-icons/react';
 import { Trend } from './Trend';
 import { formatDate, formatPlayTime, uptime, useTelemetry } from './telemetry';
@@ -13,6 +13,7 @@ import { HubCommunityWorkspace } from './playerhub/HubCommunityWorkspace.jsx';
 import { PlayerDetail } from './PlayerDetail';
 import { ExtensionDirectory, ExtensionDetails } from './Extensions.jsx';
 import { latencyTone } from './trendData';
+import { WENZHOU_ID, WENZHOU_LABEL, WENZHOU_NAME, wenzhouRoutes } from './wenzhouRoutes';
 
 const navigation = [
   { id: 'overview', name: '总览', icon: House },
@@ -23,7 +24,7 @@ const navigation = [
   { id: 'titles', name: '称号管理', icon: BookBookmark },
 ];
 function SlidersIcon(props) { return <GearSix {...props}/>; }
-const names = Object.fromEntries([...navigation, {id:'titles',name:'称号档案'}, {id:'title-players',name:'称号 · 玩家管理'}, {id:'title-activity',name:'称号 · 操作记录'}, {id:'title-settings',name:'称号设置'}, {id:'fortunes',name:'签文档案'}, {id:'fortune-players',name:'玩家签历'}, {id:'fortune-activity',name:'操作记录'}, {id:'fortune-settings',name:'抽签设置'}, {id:'hub-players',name:'玩家名片'}, {id:'hub-history',name:'历史存档'}, {id:'hub-updates',name:'更新日志'}, {id:'hub-settings',name:'Hub设置'}, {id:'hub-rankings',name:'玩家排行'}, { id: 'settings', name: '系统设置' }].map(p => [p.id, p.name]));
+const names = Object.fromEntries([...navigation, ...wenzhouRoutes, {id:'titles',name:'称号档案'}, {id:'title-players',name:'称号 · 玩家管理'}, {id:'title-activity',name:'称号 · 操作记录'}, {id:'title-settings',name:'称号设置'}, {id:'fortunes',name:'签文档案'}, {id:'fortune-players',name:'玩家签历'}, {id:'fortune-activity',name:'操作记录'}, {id:'fortune-settings',name:'抽签设置'}, {id:'hub-players',name:'玩家名片'}, {id:'hub-history',name:'历史存档'}, {id:'hub-updates',name:'更新日志'}, {id:'hub-settings',name:'Hub设置'}, {id:'hub-rankings',name:'玩家排行'}, { id: 'settings', name: '系统设置' }].map(p => [p.id, p.name]));
 const getPage = () => Object.hasOwn(names, location.hash.slice(2)) ? location.hash.slice(2) : 'overview';
 function readPreferences() { try { return { theme: 'dark', titles: true, fortunes:true, hub:true, ...JSON.parse(localStorage.getItem('pixelmc-preview-preferences') || '{}') }; } catch { return { theme: 'dark', titles: true, fortunes:true, hub:true }; } }
 
@@ -76,7 +77,7 @@ function DrawerContents({ state, telemetry: t, preferences, navigate, inspect })
   return null;
 }
 
-export function App() {
+export function App({ WenzhouWorkspace }) {
   const telemetry = useTelemetry();
   const platform=telemetry.platform;
   const [preferences, setPreferences] = useState(readPreferences);
@@ -86,31 +87,49 @@ export function App() {
   const titlePage=page==='titles'||page.startsWith('title-');
   const fortunePage=page==='fortunes'||page.startsWith('fortune-');
   const hubPage=page.startsWith('hub-'), rankingPage=page==='hub-rankings';
-  const pluginPage=titlePage||fortunePage||hubPage;
-  const moduleState=platform.value?.extensions?.find(e=>e.id===(hubPage?'playerhub':fortunePage?'dailyfortunes':'memorialtitles'));
-  const moduleHealthy=!!moduleState?.storageReady&&!!moduleState?.healthy&&!platform.error;
-  const moduleStatus=platform.error?'状态未确认':!moduleState?'未注册':moduleState.enabled===false?'未启用':moduleHealthy?(rankingPage?'插件已连接':'全局数据可用'):'数据未连接';
+  const wenzhouPage=wenzhouRoutes.some(route=>route.id===page);
+  const pluginPage=titlePage||fortunePage||hubPage||wenzhouPage;
+  const moduleName=wenzhouPage?WENZHOU_NAME:hubPage?'PlayerHub':fortunePage?'DailyFortunes':'MemorialTitles';
+  const extensions=platform.value?.extensions;
+  const wenzhouExtension=extensions?.find(extension=>extension.id===WENZHOU_ID);
+  const moduleState=wenzhouPage?wenzhouExtension:extensions?.find(extension=>extension.id===(hubPage?'playerhub':fortunePage?'dailyfortunes':'memorialtitles'));
+  const moduleHealthy=!!moduleState?.storageReady&&!!moduleState?.healthy&&!platform.error
+    && (!wenzhouPage || moduleState?.savedDataReady===true);
+  const moduleStatus=platform.error?'状态未确认':!moduleState?'未注册':moduleState.enabled===false?'未启用':moduleHealthy?(rankingPage?'插件已连接':wenzhouPage&&!moduleState.gameConnected?'已保存数据可用':'全局数据可用'):'数据未连接';
   useEffect(() => { localStorage.setItem('pixelmc-preview-preferences', JSON.stringify(preferences)); }, [preferences]);
   useEffect(() => { const change = () => { const next=getPage();if(titleDirty&&next!==page){history.replaceState(null,'','#/'+page);setPendingPage(next);return;}setPage(next);setMobileMenu(false);setDrawer(null); }; window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change); }, [titleDirty,page]);
   useEffect(() => { if (titlePage && !preferences.titles) { location.hash = '/overview'; setPage('overview'); } }, [preferences.titles, page]);
   useEffect(() => { if (fortunePage && !preferences.fortunes) { location.hash='/overview';setPage('overview'); } },[preferences.fortunes,page]);
   useEffect(() => { if (hubPage && preferences.hub===false) { location.hash='/overview';setPage('overview'); } },[preferences.hub,page]);
+  useEffect(() => {
+    if (!wenzhouPage || !titleDirty) return;
+    const confirmLeave = event => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', confirmLeave);
+    return () => window.removeEventListener('beforeunload', confirmLeave);
+  }, [wenzhouPage, titleDirty]);
   useEffect(() => () => clearTimeout(toastTimer.current), []);
   const doNavigate = id => { location.hash = '/'+id; setPage(id); setMobileMenu(false); setDrawer(null); };
   const navigate = id => { if(titleDirty && id!==page){setPendingPage(id);return;} doNavigate(id); };
-  const toast = text => { clearTimeout(toastTimer.current); setNotice(text); toastTimer.current = setTimeout(() => setNotice(''), 4500); };
+  const toast = useCallback(text => { clearTimeout(toastTimer.current); setNotice(text); toastTimer.current = setTimeout(() => setNotice(''), 4500); }, []);
   const view = titlePage && !preferences.titles ? 'overview' : page;
+  const wenzhouEnabled=!!wenzhouExtension&&wenzhouExtension.enabled!==false;
   const visiblePreferences={...preferences,titles:preferences.titles&&!!platform.value?.extensions?.some(e=>e.id==='memorialtitles'&&e.enabled!==false),fortunes:preferences.fortunes&&!!platform.value?.extensions?.some(e=>e.id==='dailyfortunes'&&e.enabled!==false),hub:preferences.hub!==false&&!!platform.value?.extensions?.some(e=>e.id==='playerhub'&&e.enabled!==false)};
   const context = { telemetry, preferences:visiblePreferences, setPreferences, navigate, inspect: setDrawer, toast };
-  const subtitle = { performance: '从 Tick 到内存，查看运行细节。', players: '当前在线玩家与服务器登记档案。', worlds: '维度、区块与存档概况。', management: '关服预约、维护、重启与聊天公告。', titles: '创建、整理与编辑服务器称号。', 'title-players':'查看玩家收藏，管理称号归属。', 'title-activity':'查阅称号的发放、撤销与编辑记录。', 'title-settings':'称号展示、首登奖励与数据备份。', fortunes:'整理签诗与解签，配置每一支签的抽取机会。', 'fortune-players':'按日收藏，查看玩家各自走过的时日。', 'fortune-activity':'追溯签文、概率与设置的每一次变动。', 'fortune-settings':'管理每日抽签、遗失补领与展示方式。', 'hub-players':'查看与编辑玩家公开展示的资料和精选收藏。', 'hub-history':'按整合包管理玩家的旅途回忆、补记与纪念展示。', 'hub-updates':'记录整合包的每次变化，管理玩家的点赞与私密反馈。', 'hub-settings':'配置玩家手册的页面入口与互动方式。', 'hub-rankings':'查看玩家的美食品鉴、签笺收藏与累计在线时长。', settings: '界面偏好、整合包档案与数据维护。' };
+  const subtitle = { performance: '从 Tick 到内存，查看运行细节。', players: '当前在线玩家与服务器登记档案。', worlds: '维度、区块与存档概况。', management: '关服预约、维护、重启与聊天公告。', titles: '创建、整理与编辑服务器称号。', 'title-players':'查看玩家收藏，管理称号归属。', 'title-activity':'查阅称号的发放、撤销与编辑记录。', 'title-settings':'称号展示、首登奖励与数据备份。', fortunes:'整理签诗与解签，配置每一支签的抽取机会。', 'fortune-players':'按日收藏，查看玩家各自走过的时日。', 'fortune-activity':'追溯签文、概率与设置的每一次变动。', 'fortune-settings':'管理每日抽签、遗失补领与展示方式。', 'hub-players':'查看与编辑玩家公开展示的资料和精选收藏。', 'hub-history':'按整合包管理玩家的旅途回忆、补记与纪念展示。', 'hub-updates':'记录整合包的每次变化，管理玩家的点赞与私密反馈。', 'hub-settings':'配置玩家手册的页面入口与互动方式。', 'hub-rankings':'查看玩家的美食品鉴、签笺收藏与累计在线时长。', ...Object.fromEntries(wenzhouRoutes.map(route=>[route.id,route.description])), settings: '界面偏好、整合包档案与数据维护。' };
   return <div className={`app integrated-plugins ${mobileMenu ? 'mobile-menu-open' : ''}`} data-theme={preferences.theme}>
-    <Sidebar page={view} navigate={navigate} preferences={visiblePreferences} setPreferences={setPreferences} closeMenu={() => setMobileMenu(false)}/>
+    <Sidebar page={view} navigate={navigate} preferences={{...visiblePreferences,[WENZHOU_ID]:preferences[wenzhouExtension?.preference||WENZHOU_ID]!==false&&wenzhouEnabled}} setPreferences={setPreferences} closeMenu={() => setMobileMenu(false)}/>
     {mobileMenu && <button className="sidebar-scrim" aria-label="关闭导航" onClick={() => setMobileMenu(false)}/>}
-    <main className="main-panel"><header className="topbar"><button className="icon-button mobile-menu-button" aria-label="展开导航" onClick={() => setMobileMenu(v => !v)}><List size={20}/></button><span className="breadcrumb">工作空间<ArrowRight size={12}/><span>{names[view]}</span></span><div className="topbar-right"><span className="local-preview">{pluginPage?(rankingPage?'玩家排行':'全局插件'):platform.archive?'只读档案':'独立后台'}</span><select aria-label="查看数据档案" title={pluginPage?(rankingPage?"排行按各榜的统计范围展示":"插件使用全局数据，请在插件页面内选择整合包"):"切换整合包统计档案"} disabled={pluginPage} className="archive-selector" value={platform.archive} onChange={e=>platform.chooseArchive(e.target.value)}><option value="">当前整合包</option>{platform.value?.archives?.filter(a=>a.status!=='active').map(a=><option key={a.id} value={a.id}>{a.name} {a.version} · {a.status==='archived'?'已归档':'待导入'}</option>)}</select><button className="button secondary" onClick={platform.logout}>退出</button></div></header>
-      <div className="page-intro"><div><div className="title-line"><h1>{names[view]}</h1>{(pluginPage) && <span className="server-name">{hubPage?"PlayerHub":fortunePage?"DailyFortunes":"MemorialTitles"}</span>}{view === 'overview' && <span className="server-name">{telemetry.pack?.name||'尚未绑定整合包'} {telemetry.pack?.version||''}</span>}</div>{view !== 'overview' && <p className="page-description">{subtitle[view]}</p>}</div><div className="live-status"><Status tone={pluginPage?(moduleHealthy?'healthy':'warning'):telemetry.stale ? 'offline' : telemetry.mode === 'lag' ? 'warning' : 'healthy'}>{pluginPage?moduleStatus:!telemetry.runId&&!telemetry.historical?'等待接入':telemetry.historical?'历史档案':telemetry.stopped?'游戏已停止':telemetry.stale?'数据中断':'运行中'}</Status><span className="freshness">{pluginPage?(rankingPage?'统计范围见下方榜单':'独立于整合包档案'):!telemetry.runId&&!telemetry.historical?'下次游戏服重启后连接':telemetry.historical?'只读':telemetry.stopped?'后台独立运行':telemetry.stale?`${telemetry.age} 秒未更新`:'实时更新'}</span></div></div>
+    <main className="main-panel"><header className="topbar"><button className="icon-button mobile-menu-button" aria-label="展开导航" onClick={() => setMobileMenu(v => !v)}><List size={20}/></button><span className="breadcrumb">工作空间<ArrowRight size={12}/>{wenzhouPage&&<>{WENZHOU_LABEL}<ArrowRight size={12}/></>}<span>{names[view]}</span></span><div className="topbar-right"><span className="local-preview">{pluginPage?(rankingPage?'玩家排行':'全局插件'):platform.archive?'只读档案':'独立后台'}</span><select aria-label="查看数据档案" title={pluginPage?(rankingPage?"排行按各榜的统计范围展示":"插件使用全局数据，请在插件页面内选择整合包"):"切换整合包统计档案"} disabled={pluginPage} className="archive-selector" value={platform.archive} onChange={e=>platform.chooseArchive(e.target.value)}><option value="">当前整合包</option>{platform.value?.archives?.filter(a=>a.status!=='active').map(a=><option key={a.id} value={a.id}>{a.name} {a.version} · {a.status==='archived'?'已归档':'待导入'}</option>)}</select><button className="button secondary" onClick={platform.logout}>退出</button></div></header>
+      <div className="page-intro"><div><div className="title-line"><h1>{names[view]}</h1>{(pluginPage) && <span className="server-name">{moduleName}</span>}{view === 'overview' && <span className="server-name">{telemetry.pack?.name||'尚未绑定整合包'} {telemetry.pack?.version||''}</span>}</div>{view !== 'overview' && <p className="page-description">{subtitle[view]}</p>}</div><div className="live-status"><Status tone={pluginPage?(moduleHealthy?'healthy':'warning'):telemetry.stale ? 'offline' : telemetry.mode === 'lag' ? 'warning' : 'healthy'}>{pluginPage?moduleStatus:!telemetry.runId&&!telemetry.historical?'等待接入':telemetry.historical?'历史档案':telemetry.stopped?'游戏已停止':telemetry.stale?'数据中断':'运行中'}</Status><span className="freshness">{pluginPage?(rankingPage?'统计范围见下方榜单':wenzhouPage&&!moduleState?.gameConnected?'游戏服未连接':'独立于整合包档案'):!telemetry.runId&&!telemetry.historical?'下次游戏服重启后连接':telemetry.historical?'只读':telemetry.stopped?'后台独立运行':telemetry.stale?`${telemetry.age} 秒未更新`:'实时更新'}</span></div></div>
       {telemetry.stale && !pluginPage && <div className="stale-notice" role="status"><WarningCircle size={16}/><span>{!telemetry.runId&&!telemetry.historical?'网页已运行，等待游戏桥接在下次重启时接入。':telemetry.historical?'正在查看归档数据，游戏操作不可用。':telemetry.stopped?'游戏已停止，网页与称号数据库继续运行。':platform.error||'游戏未连接，实时数值暂不可用。'}</span><button onClick={platform.refresh}>重新连接<ArrowRight size={12}/></button></div>}
-      {(telemetry.lostFrames>0||telemetry.totals?.counterWarnings>0)&&<div className="stale-notice" role="status"><WarningCircle size={16}/><span>{telemetry.lostFrames>0?'采集缓冲曾溢出，部分性能样本缺失；游戏继续运行。':'检测到统计回档，后台保留较高累计值。请核对世界检查点，未自动叠加或覆盖数据。'}</span></div>}
-      {view === 'overview' ? <Dashboard {...context}/> : titlePage && visiblePreferences.titles ? <TitlesWorkspace page={view} {...context} setUnsaved={setTitleDirty}/> : fortunePage && visiblePreferences.fortunes ? <FortuneWorkspace page={view} {...context} setUnsaved={setTitleDirty}/> : hubPage && visiblePreferences.hub ? (view === 'hub-players' || view === 'hub-history' ? <HubCommunityWorkspace page={view} {...context} setUnsaved={setTitleDirty}/> : view === 'hub-rankings' ? <HubRankingsWorkspace {...context}/> : <HubWorkspace page={view} {...context} setUnsaved={setTitleDirty}/>) : hubPage ? <p className="quiet-note" role="status">{!moduleState ? '当前 Manager 服务尚未注册 PlayerHub 更新日志管理功能，请升级服务。' : 'PlayerHub 尚未启用或未接入统一数据服务，请检查插件设置。'}</p> : (pluginPage) ? <p className="quiet-note">该扩展未启用。请在插件与扩展中查看注册状态。</p> : <DetailView page={view} {...context}/>}
+      {!wenzhouPage&&(telemetry.lostFrames>0||telemetry.totals?.counterWarnings>0)&&<div className="stale-notice" role="status"><WarningCircle size={16}/><span>{telemetry.lostFrames>0?'采集缓冲曾溢出，部分性能样本缺失；游戏继续运行。':'检测到统计回档，后台保留较高累计值。请核对世界检查点，未自动叠加或覆盖数据。'}</span></div>}
+      {view === 'overview' ? <Dashboard {...context}/> : titlePage && visiblePreferences.titles ? <TitlesWorkspace page={view} {...context} setUnsaved={setTitleDirty}/> : fortunePage && visiblePreferences.fortunes ? <FortuneWorkspace page={view} {...context} setUnsaved={setTitleDirty}/> : hubPage && visiblePreferences.hub ? (view === 'hub-players' || view === 'hub-history' ? <HubCommunityWorkspace page={view} {...context} setUnsaved={setTitleDirty}/> : view === 'hub-rankings' ? <HubRankingsWorkspace {...context}/> : <HubWorkspace page={view} {...context} setUnsaved={setTitleDirty}/>) : wenzhouPage ? (wenzhouEnabled && WenzhouWorkspace ? <WenzhouWorkspace page={view}
+        knowledgeRevision={platform.value?.wenzhouKnowledgeRevision}
+        historyRevision={platform.value?.wenzhouHistoryRevision}
+        playersRevision={platform.value?.wenzhouPlayersRevision}
+        serviceRevision={platform.value?.wenzhouServiceRevision}
+        presenceRevision={(platform.value?.state?.players || []).filter(p=>!p.fake && p.isOnline!==false).map(p=>p.id).sort().join(',')}
+        gameConnected={wenzhouExtension.gameConnected===true} theme={preferences.theme} toast={toast} setUnsaved={setTitleDirty}/> : <p className="quiet-note" role="status">{platform.error || (!platform.value ? '正在查询问舟AI 的注册状态…' : !moduleState ? '当前 Manager 尚未注册问舟AI。' : '问舟AI 尚未启用，请检查插件设置。')}</p>) : hubPage ? <p className="quiet-note" role="status">{!moduleState ? '当前 Manager 服务尚未注册 PlayerHub 更新日志管理功能，请升级服务。' : 'PlayerHub 尚未启用或未接入统一数据服务，请检查插件设置。'}</p> : (pluginPage) ? <p className="quiet-note">该扩展未启用。请在插件与扩展中查看注册状态。</p> : <DetailView page={view} {...context}/>}
     </main>
     {drawer && <Drawer state={drawer} close={() => setDrawer(null)}><DrawerContents state={drawer} telemetry={telemetry} preferences={preferences} navigate={navigate} inspect={setDrawer}/></Drawer>}
     {pendingPage && <Drawer state={{title:'放弃未保存的插件设置？'}} close={()=>setPendingPage(null)}><p className="detail-intro">当前修改尚未保存，离开后将丢弃这些修改。</p><div className="inline-actions"><button className="button secondary" onClick={()=>setPendingPage(null)}>继续编辑</button><button className="button primary" onClick={()=>{setTitleDirty(false);doNavigate(pendingPage);setPendingPage(null);}}>放弃并离开</button></div></Drawer>}

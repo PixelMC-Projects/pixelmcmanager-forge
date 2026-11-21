@@ -23,6 +23,7 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   public final Path data;
   public PlatformWebServer web;
   public final PlatformStore platform;
+  private final WenzhouAdmin wenzhou;
   public final PlayerHubUpdatesStore updates;
   public final PlayerHubRankingsStore rankings;
   public final PlayerHubCommunityStore community;
@@ -44,6 +45,9 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   public ManagerController(ServiceConfig config,Path data)throws Exception{
     this.config=config;this.data=data;Files.createDirectories(data);
     store=new ManagerStore(config.database());platform=new PlatformStore(store);updates=new PlayerHubUpdatesStore(store);rankings=new PlayerHubRankingsStore(store);community=new PlayerHubCommunityStore(store);store.rankings(rankings);try{store.migrate();platform.migrate();if(config.unified()){updates.migrate();}}catch(Exception unavailable){maintenanceError="Manager数据库暂不可用，自动重连中";}
+    wenzhou = config.unified()
+        ? WenzhouAdmin.open(data, this::wenzhouPlatformRequest, this::wenzhouAccessChanged, this::wenzhouQuotaChanged)
+        : null;
     titles=config.titlesEnabled()?new TitleService(new cn.pixelmc.memorialtitles.persistence.Database(config.titlesDatabase())):null;
     fortunes=config.fortunesEnabled()?new FortuneBackend(config.fortunesDatabase().url(),config.fortunesDatabase().user(),config.fortunesDatabase().password(),data.resolve("dailyfortunes")):null;
     if(titles!=null){titles.attachHubAdmission(id->online().contains(id));if(config.unified())titles.attachPlatform(platformHook("memorialtitles"));titlesAdapter=new TitlesPlatformAdapter(titles,platformHook("memorialtitles"));if(!config.unified())titles.attachPlatform(null);titles.listen(s->{titleRevision.incrementAndGet();community.changed();int prior=observedTitleRetention.getAndSet(s.settings().retentionDays());if(prior>=0&&prior!=s.settings().retentionDays())try{platform.retention(s.settings().retentionDays(),"titles-settings-compatibility");}catch(Exception e){maintenanceError="平台备份保留策略保存失败";}mirror();});}
@@ -95,7 +99,7 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     return true;
   }
   private JsonObject bridgeCapabilities(){
-    JsonObject out=new JsonObject();out.addProperty("version","0.9.0-dev");out.addProperty("protocol",1);
+    JsonObject out=new JsonObject();out.addProperty("version",Main.VERSION);out.addProperty("protocol",1);
     out.addProperty("titlesApi",3);out.addProperty("platformStorage",config.unified()?1:0);
     out.addProperty("titlesHealthy",titles!=null&&titles.healthy());out.addProperty("fortunesEnabled",fortunes!=null);
     out.addProperty("playerHubApi",config.unified()?1:0);out.addProperty("leaderboardsApi",config.unified()?1:0);
@@ -207,24 +211,75 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     return response;
   }
   private String instance(Map<String,String> q)throws Exception{String id=q.getOrDefault("instance","");if(!id.isBlank())return Wire.id(id);var all=store.instances();return all.isEmpty()?"":all.get(0).get("id").getAsString();}
-  private JsonObject bootstrap(String instance,String archive)throws Exception{
-    JsonObject out=new JsonObject();out.addProperty("version","0.9.0-dev");out.add("instances",JSON.toJsonTree(store.instances()));
+  private JsonObject bootstrap(String instance,String archive,UUID viewer)throws Exception{
+    JsonObject out=new JsonObject();out.addProperty("version",Main.VERSION);out.add("instances",JSON.toJsonTree(store.instances()));
     out.add("archives",JSON.toJsonTree(instance.isBlank()?List.of():store.archives(instance)));
     JsonObject state=instance.isBlank()?new JsonObject():store.state(instance,archive);avatars(state);out.add("state",state);out.addProperty("databaseHealthy",true);out.add("extensions",extensions());
-    out.addProperty("communityRevision",community.revision());out.addProperty("communityApi",config.unified()?1:0);out.addProperty("playerHubRevision",updates.revision());out.addProperty("leaderboardsRevision",rankings.revision());out.add("leaderboardsRevisions",rankings.revisions());out.addProperty("titleRevision",boot+":"+titleRevision.get());out.addProperty("maintenanceError",maintenanceError);out.addProperty("lastBackup",lastBackup);return out;
+    out.addProperty("communityRevision",community.revision());out.addProperty("communityApi",config.unified()?1:0);out.addProperty("playerHubRevision",updates.revision());out.addProperty("leaderboardsRevision",rankings.revision());out.add("leaderboardsRevisions",rankings.revisions());out.addProperty("titleRevision",boot+":"+titleRevision.get());out.addProperty("maintenanceError",maintenanceError);out.addProperty("lastBackup",lastBackup);
+    if (wenzhou != null) {
+      wenzhou.addRevisions(out, viewer, boot, wenzhouPlayersRevision.get(), wenzhouConfigRevision.get());
+    }
+    return out;
   }
   private void avatars(JsonObject state){if(web==null)return;if(state.has("players"))for(JsonElement raw:state.getAsJsonArray("players")){JsonObject p=raw.getAsJsonObject();if(!bool(p,"fake",false)){UUID id=UUID.fromString(text(p,"id",36));long version=web.avatars.version(id);p.addProperty("avatarVersion",version);p.addProperty("avatarUrl","/api/manager/avatars/"+id+".png?v="+version);}}}
   private JsonArray extensions()throws Exception{
     JsonArray values=new JsonArray();for(JsonObject manifest:platform.modules()){
-      JsonObject value=manifest.deepCopy();String ns=text(value,"id",64);value.addProperty("registered",true);value.addProperty("enabled",ns.equals("memorialtitles")?titles!=null:ns.equals("dailyfortunes")?fortunes!=null:ns.equals("playerhub")?config.unified():gameModules.containsKey(ns));value.addProperty("gameConnected",gameNamespaces.entrySet().stream().anyMatch(entry->entry.getValue().contains(ns)&&onlineInstances().contains(entry.getKey())));value.addProperty("storageReady",store.healthy());value.addProperty("storageMode",config.storageMode());value.addProperty("scope",value.has("scope")?value.get("scope").getAsString():"global");value.addProperty("healthy",store.healthy()&&(ns.equals("memorialtitles")?titles!=null&&titles.healthy():ns.equals("dailyfortunes")?fortunes!=null&&bool(fortunes.status(),"database",false):true));
+      JsonObject value=manifest.deepCopy();String ns=text(value,"id",64);value.addProperty("registered",true);value.addProperty("enabled",ns.equals("memorialtitles")?titles!=null:ns.equals("dailyfortunes")?fortunes!=null:ns.equals("playerhub")?config.unified():ns.equals(WenzhouAdmin.ID)?wenzhou!=null||gameModules.containsKey(ns):gameModules.containsKey(ns));value.addProperty("gameConnected",gameNamespaces.entrySet().stream().anyMatch(entry->entry.getValue().contains(ns)&&onlineInstances().contains(entry.getKey())));value.addProperty("storageReady",store.healthy());value.addProperty("storageMode",config.storageMode());value.addProperty("scope",value.has("scope")?value.get("scope").getAsString():"global");value.addProperty("healthy",store.healthy()&&(ns.equals("memorialtitles")?titles!=null&&titles.healthy():ns.equals("dailyfortunes")?fortunes!=null&&bool(fortunes.status(),"database",false):true));
+      if (ns.equals(WenzhouAdmin.ID)) {
+        value.addProperty("savedDataReady", wenzhou != null && wenzhou.ready());
+        value.addProperty("healthy", store.healthy() && wenzhou != null && wenzhou.ready());
+      }
       if(ns.equals("memorialtitles"))value.add("capabilities",JSON.toJsonTree(List.of("称号档案","玩家收藏","首登奖励","操作记录")));else if(ns.equals("dailyfortunes"))value.add("capabilities",JSON.toJsonTree(List.of("签文档案","玩家签历","操作记录","抽签设置")));else if(value.has("uiCapabilities"))value.add("capabilities",value.get("uiCapabilities"));
       if(ns.equals("memorialtitles")&&titles!=null){value.addProperty("titles",titles.snapshot().titles().size());value.addProperty("players",platform.profiles().getAsJsonArray("players").size());}values.add(value);
     }return values;
   }
   private Set<String> onlineInstances(){long now=System.currentTimeMillis();Set<String> result=new HashSet<>();presence.forEach((key,value)->{if(value.until()>now)result.add(key);});return result;}
+    private final AtomicLong wenzhouPlayersRevision = new AtomicLong();
+    private final AtomicLong wenzhouConfigRevision = new AtomicLong();
+
+    private JsonObject wenzhouPlatformRequest(JsonObject request) throws Exception {
+        JsonObject result = platform.request(WenzhouAdmin.ID, request, online());
+        String operation = text(request, "op", 64);
+        switch (operation) {
+            case "quota.configure", "quota.resetall" -> {
+                wenzhouConfigRevision.incrementAndGet();
+                wenzhouPlayersRevision.incrementAndGet();
+            }
+            case "storage.set" -> {
+                if (Set.of("access", "agreement").contains(text(request, "field", 32)))
+                    wenzhouPlayersRevision.incrementAndGet();
+            }
+            case "quota.edit", "quota.reset", "quota.open", "quota.charge", "quota.legacy",
+                    "quota.sweep" -> wenzhouPlayersRevision.incrementAndGet();
+        }
+        return result;
+    }
+
+    private void wenzhouAccessChanged(UUID player) {
+        notifyWenzhou("accessChanged", player);
+    }
+
+    private void wenzhouQuotaChanged(UUID player) {
+        notifyWenzhou("quotaChanged", player);
+    }
+
+    private void notifyWenzhou(String operation, UUID player) {
+        for (String instance : onlineInstances()) {
+            if (!gameNamespaces.getOrDefault(instance, Set.of()).contains(WenzhouAdmin.ID)) continue;
+            if (player != null && !admitted(instance).contains(player)) continue;
+            try {
+                store.callback(instance, WenzhouAdmin.ID, operation, player == null ? Map.of() : Map.of("player", player.toString()));
+            } catch (Exception unavailable) {
+                // The grant is already committed. The game checks it on each request.
+                System.err.println("WenZhou access updated; game change notification unavailable.");
+            }
+        }
+    }
+
   private Set<UUID> admitted(String instance){Presence p=presence.get(instance);return p!=null&&p.until()>System.currentTimeMillis()?p.players():Set.of();}
   public void initializePlatform()throws Exception{
     updates.migrate();platform.register("playerhub",PlayerHubUpdatesStore.manifest());updates.syncPacks();
+    if (wenzhou != null) platform.register(WenzhouAdmin.ID, WenzhouAdmin.storageManifest());
     if(titles!=null)platform.register("memorialtitles",moduleManifest("memorialtitles",TitlesPlatformAdapter.storageManifest()));
     if(fortunes!=null)platform.register("dailyfortunes",moduleManifest("dailyfortunes",FortuneBackend.storageManifest()));
     if(fortunes!=null)fortunes.request("GET","/state",new JsonObject(),Map.of(),"platform-init",Set.of());
@@ -241,7 +296,13 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   private void registerGameModules(String instance,JsonObject info)throws Exception{
     if(!info.has("extensions"))return;Set<String> present=new HashSet<>();for(JsonElement element:array(info,"extensions",64)){
       JsonObject module=element.getAsJsonObject();String ns=text(module,"id",64);if(!module.has("storage"))continue;present.add(ns);if(module.equals(gameModules.get(ns)))continue;JsonObject manifest=object(module,"storage");
-      if(!ns.equals("memorialtitles")&&!ns.equals("dailyfortunes")&&!ns.equals("playerhub")){if(manifest.has("tables")&&!manifest.getAsJsonArray("tables").isEmpty())throw new SecurityException("Only native service adapters own SQL tables");platform.register(ns,manifest);}
+      if (ns.equals(WenzhouAdmin.ID)) {
+        JsonObject canonical = WenzhouAdmin.storageManifest();
+        long version = number(manifest, "version", 1, 1, 3);
+        if (version >= 2 && !WenzhouAdmin.matchesStorageManifest(manifest, (int) version))
+          throw new IllegalArgumentException("问舟存储清单不匹配");
+        platform.register(ns, canonical);
+      } else if(!ns.equals("memorialtitles")&&!ns.equals("dailyfortunes")&&!ns.equals("playerhub")){if(manifest.has("tables")&&!manifest.getAsJsonArray("tables").isEmpty())throw new SecurityException("Only native service adapters own SQL tables");platform.register(ns,manifest);}
       gameModules.put(ns,module.deepCopy());
     }gameNamespaces.put(instance,Set.copyOf(present));gameModules.keySet().removeIf(ns->gameNamespaces.values().stream().noneMatch(set->set.contains(ns)));
   }
@@ -251,6 +312,7 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     if(op.equals("avatars.upload")){UUID id=UUID.fromString(text(request,"player",36));if(!online().contains(id))throw new SecurityException("Player not admitted");web.avatars.uploadFallback(id,text(request,"nonce",128),text(request,"png",1048576));JsonObject out=new JsonObject();out.addProperty("ok",true);return out;}
     if(op.equals("titles.mirror")){mirror();JsonObject value=new JsonObject();value.addProperty("ok",true);return value;}
     if(op.equals("titles.definitions"))return JSON.toJsonTree(AdminWebServer.definitions(titles.snapshot())).getAsJsonObject();
+    if (WenzhouAdmin.ID.equals(namespace)) return wenzhouPlatformRequest(request);
     return platform.request(namespace,request,online());
   }catch(RuntimeException e){throw e;}catch(Exception e){throw new IllegalStateException("平台服务暂不可用",e);}};}
   private boolean platformRoute(HttpExchange e,String path,UUID actor)throws Exception{
@@ -270,6 +332,7 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     if(path.startsWith("/api/extensions/")){
       if(!config.unified())throw new IllegalStateException("命名空间存储需要先迁移到统一平台");
       String[] parts=path.substring("/api/extensions/".length()).split("/");if(parts.length!=3||!parts[1].equals("storage")||!Set.of("get","set").contains(parts[2])||!post)throw new IllegalArgumentException("扩展存储路由无效");
+      if (parts[0].equals(WenzhouAdmin.ID)) throw new SecurityException("请通过问舟管理入口访问其存储");
       JsonObject request=body(e);request.addProperty("op","storage."+parts[2]);json(e,200,platform.request(parts[0],request,online()));return true;
     }
     boolean daily=path.startsWith("/api/dailyfortunes/");if(daily&&!config.unified())return false;String local=daily?path.substring("/api/dailyfortunes".length()):path.substring(Math.min(4,path.length()));
@@ -292,6 +355,14 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
   }
   private boolean adminRouteLocked(HttpExchange e,String path,UUID actorId,BooleanSupplier authorized)throws Exception{
     TitleService.Actor actor=new TitleService.Actor(actorId,actorId.toString(),false,true);
+    if (path.startsWith(WenzhouAdmin.PREFIX)) {
+      if (wenzhou == null) {
+        json(e, 503, Map.of("error", "问舟独立服务尚未配置"));
+      } else {
+        wenzhou.handle(e, path.substring(WenzhouAdmin.PREFIX.length()), actorId);
+      }
+      return true;
+    }
     if(path.startsWith("/api/playerhub/community/")){
       try{
         if(!config.unified())throw new IllegalStateException("社区功能需要统一平台存储");
@@ -323,8 +394,8 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     if(!path.startsWith("/api/manager/"))return false;var q=query(e);String instance=instance(q),archive=q.getOrDefault("archive","");boolean post=e.getRequestMethod().equals("POST");
     if(path.startsWith("/api/manager/avatars/")&&!post){String tail=path.substring("/api/manager/avatars/".length());if(!tail.endsWith(".png"))throw new IllegalArgumentException("头像路径无效");UUID id=UUID.fromString(tail.substring(0,tail.length()-4));boolean known=!platform.profile(id.toString()).get("profile").isJsonNull();if(!known&&!config.owners().contains(id))throw new IllegalArgumentException("玩家未登记");byte[] bytes;if(known)bytes=web.avatars.head(id);else try(var in=getClass().getResourceAsStream("/web/default-heads/"+Math.floorMod(id.hashCode(),18)+".png")){bytes=Objects.requireNonNull(in).readAllBytes();}e.getResponseHeaders().set("Content-Type","image/png");e.sendResponseHeaders(200,bytes.length);e.getResponseBody().write(bytes);return true;}
     switch(path){
-      case "/api/manager/bootstrap","/api/manager/state"->{if(post)throw new IllegalArgumentException("只读接口");json(e,200,bootstrap(instance,archive));}
-      case "/api/manager/events"->{if(post)throw new IllegalArgumentException("只读接口");stream(e,instance,archive,authorized);}
+      case "/api/manager/bootstrap","/api/manager/state"->{if(post)throw new IllegalArgumentException("只读接口");json(e,200,bootstrap(instance,archive,actorId));}
+      case "/api/manager/events"->{if(post)throw new IllegalArgumentException("只读接口");stream(e,instance,archive,actorId,authorized);}
       case "/api/manager/archives"->{if(!post){json(e,200,store.archives(instance));break;}JsonObject created=store.createArchive(body(e),actor.player().toString());syncPack();if(config.unified()){updates.syncPacks();community.changed();}json(e,200,created);}
       case "/api/manager/archive"->{if(!post)throw new IllegalArgumentException("需要POST");JsonObject b=body(e);store.archive(text(b,"id",36),actor.player().toString());if(config.unified()){updates.syncPacks();community.changed();}json(e,200,Map.of("ok",true));}
       case "/api/manager/import/preview","/api/manager/import/confirm"->{if(!post)throw new IllegalArgumentException("需要POST");JsonObject b=body(e);if(path.endsWith("confirm")&&!text(b,"checksum",64).equals(digest(JSON.toJson(object(b,"file")))))throw new IllegalArgumentException("导入文件已改变");json(e,200,store.importLegacy(text(b,"archiveId",36),object(b,"file"),actor.player().toString(),path.endsWith("confirm")));}
@@ -339,11 +410,11 @@ public final class ManagerController implements PlatformWebServer.Host,AutoClose
     }
     return true;
   }
-  private void stream(HttpExchange e,String instance,String archive,BooleanSupplier authorized)throws Exception{
+  private void stream(HttpExchange e,String instance,String archive,UUID viewer,BooleanSupplier authorized)throws Exception{
     if(streams.incrementAndGet()>2){streams.decrementAndGet();json(e,429,Map.of("error","实时连接数量已满"));return;}
     try{e.getResponseHeaders().set("Content-Type","text/event-stream; charset=utf-8");e.getResponseHeaders().set("Cache-Control","no-store");e.getResponseHeaders().set("X-Accel-Buffering","no");e.sendResponseHeaders(200,0);long until=System.nanoTime()+60_000_000_000L;
       while(System.nanoTime()<until&&authorized.getAsBoolean()){
-        String event="event: snapshot\ndata: "+JSON.toJson(bootstrap(instance,archive))+"\n\n";e.getResponseBody().write(event.getBytes(StandardCharsets.UTF_8));e.getResponseBody().flush();Thread.sleep(1000);
+        String event="event: snapshot\ndata: "+JSON.toJson(bootstrap(instance,archive,viewer))+"\n\n";e.getResponseBody().write(event.getBytes(StandardCharsets.UTF_8));e.getResponseBody().flush();Thread.sleep(1000);
       }
     }finally{streams.decrementAndGet();}
   }

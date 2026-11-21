@@ -41,3 +41,15 @@ Service-only hotfix 0.6.0.web.1 uses DailyFortunes 0.2.1 shared source. Build wi
 Manager 的网页构建复用 PixelMC-Hub 的部分源码。默认从相邻项目目录读取；如源码不在默认位置，构建前将环境变量 `PIXELMC_HUB_SOURCE_ROOT` 指向已检出的 Hub 项目根目录，并使用发行来源清单指定的提交。
 
 Manager 服务使用 `build:manager` 编译网页；原有 `build` 脚本仍用于 Sites 打包。
+
+### 构建问舟配套独立服务
+
+从发行附件中的 `SOURCE.json` 核对 Manager、MemorialTitles、DailyFortunes、PixelMC-Hub 与 WenZhou-Agent 的提交。使用 Java 17 和项目锁定的 Node 依赖。将 `PIXELMC_HUB_SOURCE_ROOT` 指向对应 Hub 工作区，执行：
+
+```sh
+./gradlew managerServiceJar -PmanagerServiceVersion=0.9.0-dev.web.8 \
+  -PwenzhouAgentDir=../WenZhou-Agent -PmemorialTitlesDir=../MemorialTitles \
+  -PdailyFortunesDir=../DailyFortunes
+```
+
+服务输出为 `build/manager-service/pixelmc-manager-service-0.9.0-dev.web.8.jar`。首次配置使用统一 MariaDB 存储。将 `wenzhou-admin.properties` 放在 Manager 数据目录，填写 `sourceDirectory` 为问舟保存数据的绝对目录，`ownerPlayerUuid` 为已具有 Manager 管理权限的服主 UUID。问舟运行中的会话与在线设置还需按问舟管理文档配置 HTTPS 同源路由。

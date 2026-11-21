@@ -8,8 +8,10 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public final class Main {
+  static final String VERSION = Objects.requireNonNullElse(Main.class.getPackage().getImplementationVersion(), "dev");
+
   public static void main(String[] args)throws Exception{
-    if(args.length<2){System.out.println("PixelMC Manager 0.6.0 · Java17\n用法: java -jar service.jar <init-config|init-admin|instance|run|backup|restore|migrate-web|platform-init> <manager.json> [参数]");return;}
+    if(args.length<2){System.out.println("PixelMC Manager Service " + VERSION + " · Java 17\n用法: java -jar service.jar <init-config|init-admin|instance|run|backup|restore|migrate-web|platform-init> <manager.json> [参数]");return;}
     String action=args[0];Path file=Path.of(args[1]).toAbsolutePath().normalize();
     if(action.equals("init-config")){
       if(Files.exists(file))throw new IllegalStateException("配置已存在，未覆盖");
