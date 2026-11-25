@@ -126,6 +126,53 @@ public final class RecipeGameplayApi {
         return result;
     }
 
+    /** Reads the actual instance selected by the server's recipe manager after data reload. */
+    public static JsonObject detail(Recipe<?> recipe, RegistryAccess registries)
+            throws ReflectiveOperationException {
+        var type = recipe.getClass();
+        boolean pot = type.getName().equals("vectorwing.farmersdelight.common.crafting.CookingPotRecipe");
+        if (!pot && !type.getName().equals(CUTTING)) return detail(recipe);
+        var detail = GameplayData.row("id", recipe.getId().toString());
+        detail.addProperty("serializer", BuiltInRegistries.RECIPE_SERIALIZER.getKey(recipe.getSerializer()).toString());
+        detail.addProperty("machine", pot ? "farmersdelight:cooking_pot" : "farmersdelight:cutting_board");
+        var inputs = new JsonArray();
+        recipe.getIngredients().forEach(ingredient -> inputs.add(ingredient.toJson()));
+        detail.add("ingredients", inputs);
+        if (pot) {
+            var meal = recipe.getResultItem(registries);
+            if (meal.isEmpty()) return null;
+            detail.add("result", stackData(meal));
+            var container = (ItemStack) type.getMethod("getOutputContainer").invoke(recipe);
+            if (container.isEmpty()) container = meal.getCraftingRemainingItem();
+            detail.addProperty("containers_consumed_per_serving", container.isEmpty() ? 0 : 1);
+            if (!container.isEmpty()) detail.add("serving_container", stackData(container.copyWithCount(1)));
+            detail.addProperty("cook_ticks", (Number) type.getMethod("getCookTime").invoke(recipe));
+            detail.addProperty("requires_heat", true);
+        } else {
+            detail.add("tool", ((Ingredient) type.getMethod("getTool").invoke(recipe)).toJson());
+            var outcomes = new JsonArray();
+            for (var roll : (List<?>) type.getMethod("getRollableResults").invoke(recipe)) {
+                var stack = (ItemStack) roll.getClass().getMethod("getStack").invoke(roll);
+                if (stack.isEmpty()) continue;
+                var row = stackData(stack);
+                row.addProperty("base_chance", (Number) roll.getClass().getMethod("getChance").invoke(roll));
+                outcomes.add(row);
+            }
+            detail.add("independent_rolls", outcomes);
+        }
+        if (detail.toString().getBytes(StandardCharsets.UTF_8).length > 8192) return null;
+        var result = GameplayData.result("live", pot ? "容器取餐时逐份消耗，另计于下锅材料。" : "逐项列出未计时运的基础产出。");
+        result.add("recipe", detail);
+        return result;
+    }
+
+    private static JsonObject stackData(ItemStack stack) {
+        var row = GameplayData.row("item", BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+        row.addProperty("count", stack.getCount());
+        if (stack.hasTag()) row.addProperty("snbt", stack.getTag().toString());
+        return row;
+    }
+
     private static Imbuement imbuement(Recipe<?> recipe) throws ReflectiveOperationException {
         var type = recipe.getClass();
         var raw = (List<?>) type.getField("pedestalItems").get(recipe);

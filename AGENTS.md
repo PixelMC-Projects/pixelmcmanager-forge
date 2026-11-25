@@ -33,3 +33,11 @@ Do not use a single "适用环境" section as the only compatibility description
 ## Plugin web UI
 
 Before creating or modifying plugin pages, read `web-console/docs/插件页面风格规范.md`. Reuse its MemorialTitles component references and record acceptance evidence against its checklist. Keep subsequent user decisions in that standard. Core Manager dashboard patterns are not the plugin settings baseline. Do not claim unverified cases or prototype-only APIs as production-ready.
+
+## Mod interface standard
+
+Before adding or changing mod integration, player data, bridge/provider capabilities, storage projections, caches or change events, read and follow `docs/模组接口规范.md`. Treat it as a persistent development/review standard alongside the plugin UI standard. Keep capability versions, public field allowlists, compatibility checks and the migration-status table current. Dynamic registration never grants player access to admin or trusted-server actions. Preserve optional dependencies and committed-event updates; do not add periodic full scans. Web preview contracts do not establish implemented backend/native or production support.
+
+## Java formatting
+
+Follow `docs/java-formatting.md` for Java formatting and check the result after changes. Keep functional edits separate.

@@ -19,19 +19,28 @@ public final class KillMeCommand {
         KillCommand.register(vanilla);
         Command<CommandSourceStack> killSelf = vanilla.getRoot().getChild("kill").getCommand();
 
-        dispatcher.register(Commands.literal("killme")
-                .requires(source -> source.getEntity() instanceof ServerPlayer)
-                .executes(context -> {
-                    CommandSourceStack source = context.getSource();
-                    ServerPlayer player = source.getPlayerOrException();
-                    if (!player.isAlive()) {
-                        return 0;
-                    }
-                    source.getServer().getPlayerList().broadcastSystemMessage(
-                            Component.translatable("chat.type.text", player.getDisplayName(),
-                                    Component.literal("自刎归天!!!")), false);
-                    // Vanilla death rules/events still apply; suppress only command success feedback.
-                    return killSelf.run(context.copyFor(source.withSuppressedOutput()));
-                }));
+        dispatcher.register(
+                Commands.literal("killme")
+                        .requires(source -> source.getEntity() instanceof ServerPlayer)
+                        .executes(
+                                context -> {
+                                    CommandSourceStack source = context.getSource();
+                                    ServerPlayer player = source.getPlayerOrException();
+                                    if (!player.isAlive()) {
+                                        return 0;
+                                    }
+                                    source.getServer()
+                                            .getPlayerList()
+                                            .broadcastSystemMessage(
+                                                    Component.translatable(
+                                                            "chat.type.text",
+                                                            player.getDisplayName(),
+                                                            Component.literal("自刎归天!!!")),
+                                                    false);
+                                    // Vanilla death rules/events still apply; suppress only command
+                                    // success feedback.
+                                    return killSelf.run(
+                                            context.copyFor(source.withSuppressedOutput()));
+                                }));
     }
 }

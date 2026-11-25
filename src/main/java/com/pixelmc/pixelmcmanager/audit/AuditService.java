@@ -40,31 +40,44 @@ public final class AuditService {
         }
 
         try (var lines = Files.lines(auditFile, StandardCharsets.UTF_8)) {
-            lines.forEach(line -> {
-                try {
-                    AuditEntry entry = GSON.fromJson(line, AuditEntry.class);
-                    if (entry != null) {
-                        addToCache(entry);
-                    }
-                } catch (JsonSyntaxException exception) {
-                    logger.warn("Ignoring invalid PixelMC Manager audit log line in {}.", auditFile);
-                }
-            });
+            lines.forEach(
+                    line -> {
+                        try {
+                            AuditEntry entry = GSON.fromJson(line, AuditEntry.class);
+                            if (entry != null) {
+                                addToCache(entry);
+                            }
+                        } catch (JsonSyntaxException exception) {
+                            logger.warn(
+                                    "Ignoring invalid PixelMC Manager audit log line in {}.",
+                                    auditFile);
+                        }
+                    });
         } catch (IOException exception) {
             logger.error("Failed to load PixelMC Manager audit log from {}.", auditFile, exception);
         }
     }
 
-    public synchronized void record(CommandSourceStack source, String action, String args, String detail) {
+    public synchronized void record(
+            CommandSourceStack source, String action, String args, String detail) {
         if (auditFile == null) {
-            auditFile = source.getServer().getWorldPath(LevelResource.ROOT).resolve(DATA_DIR).resolve(AUDIT_FILE);
+            auditFile =
+                    source.getServer()
+                            .getWorldPath(LevelResource.ROOT)
+                            .resolve(DATA_DIR)
+                            .resolve(AUDIT_FILE);
         }
 
         AuditEntry entry = createEntry(source, action, args, detail);
         addToCache(entry);
         try {
             Files.createDirectories(auditFile.getParent());
-            Files.writeString(auditFile, GSON.toJson(entry) + System.lineSeparator(), StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            Files.writeString(
+                    auditFile,
+                    GSON.toJson(entry) + System.lineSeparator(),
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND);
         } catch (IOException exception) {
             logger.error("Failed to append PixelMC Manager audit log to {}.", auditFile, exception);
         }
@@ -81,10 +94,12 @@ public final class AuditService {
     }
 
     public void flush() {
-        // Audit records are appended immediately; this method documents that no buffered writes remain.
+        // Audit records are appended immediately; this method documents that no buffered writes
+        // remain.
     }
 
-    private AuditEntry createEntry(CommandSourceStack source, String action, String args, String detail) {
+    private AuditEntry createEntry(
+            CommandSourceStack source, String action, String args, String detail) {
         if (source.getEntity() instanceof ServerPlayer player) {
             return new AuditEntry(
                     System.currentTimeMillis(),

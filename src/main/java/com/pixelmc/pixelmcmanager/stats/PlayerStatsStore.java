@@ -33,19 +33,22 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 public final class PlayerStatsStore {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final Gson GSON =
+            new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final String DATA_DIR = "pixelmcmanager";
     private static final String LEGACY_DATA_DIR = "pixelmcwelcome";
-    private static final Type FILE_TYPE = new TypeToken<StatsFile>() {
-    }.getType();
+    private static final Type FILE_TYPE = new TypeToken<StatsFile>() {}.getType();
 
     private final Logger logger;
     private final Map<UUID, PlayerStats> players = new LinkedHashMap<>();
     private final Map<UUID, Long> lastAccountedMillis = new HashMap<>();
     private final Map<UUID, HubSession> hubSessions = new HashMap<>();
     private long hubSessionSequence;
-    private record HubSession(long previousLoginAt, long sequence) { }
-    public record HubSnapshot(PlayerStats stats, long previousLoginAt, long session) { }
+
+    private record HubSession(long previousLoginAt, long sequence) {}
+
+    public record HubSnapshot(PlayerStats stats, long previousLoginAt, long session) {}
+
     private Path dataFile;
     private boolean loaded = false;
 
@@ -55,7 +58,8 @@ public final class PlayerStatsStore {
 
     public synchronized void load(MinecraftServer server) {
         hubSessions.clear();
-        // LevelResource.ROOT resolves inside the active save root, the directory that owns level.dat.
+        // LevelResource.ROOT resolves inside the active save root, the directory that owns
+        // level.dat.
         Path worldRoot = server.getWorldPath(LevelResource.ROOT);
         Path nextDataFile = worldRoot.resolve(DATA_DIR).resolve("player_stats.json");
         Path legacyDataFile = worldRoot.resolve(LEGACY_DATA_DIR).resolve("player_stats.json");
@@ -82,10 +86,13 @@ public final class PlayerStatsStore {
                 for (Map.Entry<String, PlayerStats> entry : statsFile.players.entrySet()) {
                     try {
                         UUID uuid = UUID.fromString(entry.getKey());
-                        PlayerStats stats = entry.getValue() == null ? new PlayerStats() : entry.getValue();
+                        PlayerStats stats =
+                                entry.getValue() == null ? new PlayerStats() : entry.getValue();
                         loadedPlayers.put(uuid, stats);
                     } catch (IllegalArgumentException ignored) {
-                        logger.warn("Ignoring invalid player UUID in PixelMC Manager stats: {}", entry.getKey());
+                        logger.warn(
+                                "Ignoring invalid player UUID in PixelMC Manager stats: {}",
+                                entry.getKey());
                     }
                 }
             }
@@ -95,7 +102,8 @@ public final class PlayerStatsStore {
             loaded = true;
         } catch (JsonParseException exception) {
             dataFile = nextDataFile;
-            logger.error("PixelMC Manager player stats file {} is invalid JSON.", dataFile, exception);
+            logger.error(
+                    "PixelMC Manager player stats file {} is invalid JSON.", dataFile, exception);
             backupBrokenStatsFile();
             players.clear();
             lastAccountedMillis.clear();
@@ -103,7 +111,10 @@ public final class PlayerStatsStore {
         } catch (IOException | RuntimeException exception) {
             dataFile = nextDataFile;
             loaded = false;
-            logger.error("Failed to load PixelMC Manager player stats from {}. Existing file was left untouched.", dataFile, exception);
+            logger.error(
+                    "Failed to load PixelMC Manager player stats from {}. Existing file was left untouched.",
+                    dataFile,
+                    exception);
         }
     }
 
@@ -119,11 +130,14 @@ public final class PlayerStatsStore {
     }
 
     public synchronized PlayerLoginSnapshot recordLogin(UUID uuid, String name, long nowMillis) {
-        PlayerStats stats = players.computeIfAbsent(uuid, ignored -> {
-            PlayerStats created = new PlayerStats();
-            created.firstJoinEpochMillis = nowMillis;
-            return created;
-        });
+        PlayerStats stats =
+                players.computeIfAbsent(
+                        uuid,
+                        ignored -> {
+                            PlayerStats created = new PlayerStats();
+                            created.firstJoinEpochMillis = nowMillis;
+                            return created;
+                        });
 
         boolean firstJoin = stats.joinCount == 0;
         long previousLastJoin = stats.lastJoinEpochMillis;
@@ -145,8 +159,10 @@ public final class PlayerStatsStore {
         if (session == null || value == null || !lastAccountedMillis.containsKey(uuid)) return null;
         PlayerStats copy = value.copy();
         long elapsed = uncheckpointedMillis(uuid, nowMillis);
-        copy.totalOnlineMillis = elapsed > Long.MAX_VALUE - Math.max(0, copy.totalOnlineMillis)
-                ? Long.MAX_VALUE : Math.max(0, copy.totalOnlineMillis) + elapsed;
+        copy.totalOnlineMillis =
+                elapsed > Long.MAX_VALUE - Math.max(0, copy.totalOnlineMillis)
+                        ? Long.MAX_VALUE
+                        : Math.max(0, copy.totalOnlineMillis) + elapsed;
         return new HubSnapshot(copy, session.previousLoginAt(), session.sequence());
     }
 
@@ -171,7 +187,13 @@ public final class PlayerStatsStore {
         }
         String normalized = name.toLowerCase(Locale.ROOT);
         return players.entrySet().stream()
-                .filter(entry -> entry.getValue().name != null && entry.getValue().name.toLowerCase(Locale.ROOT).equals(normalized))
+                .filter(
+                        entry ->
+                                entry.getValue().name != null
+                                        && entry.getValue()
+                                                .name
+                                                .toLowerCase(Locale.ROOT)
+                                                .equals(normalized))
                 .findFirst()
                 .map(entry -> new PlayerStatsEntry(entry.getKey(), entry.getValue().copy()));
     }
@@ -195,7 +217,8 @@ public final class PlayerStatsStore {
         return at == null ? 0 : Math.max(0, now - at);
     }
 
-    public synchronized void checkpointOnlinePlayers(MinecraftServer server, long nowMillis, boolean saveAfterCheckpoint) {
+    public synchronized void checkpointOnlinePlayers(
+            MinecraftServer server, long nowMillis, boolean saveAfterCheckpoint) {
         if (!ensureLoaded(server)) {
             return;
         }
@@ -252,13 +275,23 @@ public final class PlayerStatsStore {
 
             Path tempFile = dataFile.resolveSibling(dataFile.getFileName() + ".tmp");
             byte[] bytes = GSON.toJson(statsFile).getBytes(StandardCharsets.UTF_8);
-            try (FileChannel channel = FileChannel.open(tempFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+            try (FileChannel channel =
+                    FileChannel.open(
+                            tempFile,
+                            StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING,
+                            StandardOpenOption.WRITE)) {
                 channel.write(ByteBuffer.wrap(bytes));
-                // Force temp file contents to disk before replace. Directory fsync is platform dependent on Windows, so atomic replace is still the main protection.
+                // Force temp file contents to disk before replace. Directory fsync is platform
+                // dependent on Windows, so atomic replace is still the main protection.
                 channel.force(true);
             }
             try {
-                Files.move(tempFile, dataFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                Files.move(
+                        tempFile,
+                        dataFile,
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException atomicMoveFailed) {
                 Files.move(tempFile, dataFile, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -272,20 +305,23 @@ public final class PlayerStatsStore {
             return;
         }
 
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String timestamp =
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         Path backup = dataFile.resolveSibling("player_stats.json.broken-" + timestamp);
         try {
             Files.move(dataFile, backup, StandardCopyOption.REPLACE_EXISTING);
             logger.warn("Backed up broken PixelMC Manager stats file to {}.", backup);
         } catch (IOException exception) {
-            logger.error("Failed to back up broken PixelMC Manager stats file {}.", dataFile, exception);
+            logger.error(
+                    "Failed to back up broken PixelMC Manager stats file {}.", dataFile, exception);
         }
     }
 
     private void migrateLegacyStatsIfNeeded(Path legacyDataFile) throws IOException {
         if (Files.notExists(dataFile) && Files.exists(legacyDataFile)) {
             Files.copy(legacyDataFile, dataFile, StandardCopyOption.COPY_ATTRIBUTES);
-            logger.info("Copied legacy pixelmcwelcome stats from {} to {}.", legacyDataFile, dataFile);
+            logger.info(
+                    "Copied legacy pixelmcwelcome stats from {} to {}.", legacyDataFile, dataFile);
         }
     }
 

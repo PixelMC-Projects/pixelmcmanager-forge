@@ -73,6 +73,24 @@ snapshot：`{settings,packs,packsTotal,packsPage:0,packsHasMore,selectedPackId,l
 
 save/status/pin 返回 `{entry,revision}`；settings 返回 `{settings,revision}`；visibility 返回 `{pack,revision}`；delete 返回 `{ok:true,revision}`；留言操作返回最新详情。管理员回复也支持 operationId 去重。删除日志必须逐字匹配已持久化标题及数字 revision；同一事务删除正文、点赞、留言、回复和去重记录。撤下、隐藏均不删除数据。
 
+### 本机回环受限 API 令牌
+
+面向服主本机/SSH 自动化发稿的受限 Bearer 令牌保存在平台目录 `api-tokens.json`（仅存 SHA-256 哈希），支持在服务运行中热重载。由 CLI 管理：
+
+```sh
+java -jar pixelmc-manager-service.jar api-token <manager.json> create <名称> <服主UUID> <updates:draft|updates:publish> [输出文件]
+java -jar pixelmc-manager-service.jar api-token <manager.json> list
+java -jar pixelmc-manager-service.jar api-token <manager.json> revoke <名称>
+```
+
+安全与权限边界：
+- 仅接受真实 TCP 回环地址（`127.0.0.1` / `::1`），且拒绝任何携带 `X-Forwarded-For`、`X-Real-IP`、`Forwarded`、`Origin` 或网页会话 Cookie 的请求；不提供公网直连入口。
+- 必须绑定当前配置中的有效服主 UUID，每次请求复核令牌未撤销且服主授权有效。审计日志记录为 `token:<id>:<ownerUuid>`。
+- 仅放行更新日志静态白名单路由：
+  - `updates:draft`：允许 `GET /state`、`/packs`、`/entries`、`/entry` 与 `POST /entry/save`（服务端强制 `publish=false`，且仅允许新建或编辑未发布的草稿）。
+  - `updates:publish`：在草稿权限基础上，允许 `POST /entry/save`（含直接发布与编辑已发布条目）、`POST /entry/status`、`POST /entry/pin`。
+- 所有令牌一律拒绝 `/entry/delete`、`/settings`、`/pack/visibility`、`/comment/*`、`/replies` 以及任何其他 Manager、社区、排行、称号、签笺或问舟管理接口（返回 403）。写入成功后沿用 `updates.changed()` 递增 `playerHubRevision`，游戏内 Hub 与 SSE 实时感知。
+
 ## 文档、包身份和平台所有权
 
 正文纯文本/旧 Markdown `body` 最长 20000 UTF-16 字符。可附 `bodyDocument`，只接受 ProseMirror `doc/paragraph/heading(level:3)/bulletList/listItem/hardBreak/text`，文本 marks 只允许 `bold`。禁止未知节点、属性、链接、图片和 HTML。最多深度 16、4000 节点、160000 UTF-8 字节；保存时从受限文档重建 body。管理回复最长 2000 字符。玩家详情最大为 12 个线程，各 20 回复，传输端使用 updates 专用 2MiB 界限及有界分片；其它 Hub 模块的界限不扩大。

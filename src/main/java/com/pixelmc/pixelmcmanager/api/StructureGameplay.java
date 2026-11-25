@@ -50,6 +50,22 @@ final class StructureGameplay {
         if (kind.equals("structure_generation")) {
             return CompletableFuture.completedFuture(generation(server,target,page));
         }
+        if (kind.equals("chest_sources") && !net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .containsKey(ResourceLocation.tryParse(target))) {
+            return CompletableFuture.completedFuture(result("not_registered", "物品未注册。"));
+        }
+        var structureIndex = cached(server);
+        if (structureIndex.isCompletedExceptionally()) {
+            return CompletableFuture.completedFuture(result("unavailable", "结构容器索引建立失败。"));
+        }
+        if (!structureIndex.isDone()) {
+            var pending = result("index_building", "正在后台整理结构与容器的对应关系。");
+            if (kind.equals("chest_sources")) {
+                pending.addProperty("next_query", "loot_sources");
+                pending.addProperty("target", target);
+            }
+            return CompletableFuture.completedFuture(pending);
+        }
         var possible = new HashSet<String>();
         if (server.getWorldData().worldGenOptions().generateStructures()) {
             for (var level : server.getAllLevels())
@@ -61,9 +77,6 @@ final class StructureGameplay {
         }
         var active = new HashMap<ResourceLocation, LootTable>();
         if (kind.equals("chest_sources")) {
-            if (!net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(
-                    ResourceLocation.tryParse(target)))
-                return CompletableFuture.completedFuture(result("not_registered", "物品未注册。"));
             for (var key : server.getLootData().getKeys(LootDataType.TABLE))
                 active.put(key, server.getLootData().getLootTable(key));
         }
@@ -76,7 +89,7 @@ final class StructureGameplay {
                                     item.builtInRegistryHolder()
                                             .tags()
                                             .forEach(t -> tags.add(t.location().toString())));
-        return cached(server)
+        return structureIndex
                 .thenApplyAsync(
                         idx -> {
                             var rows = new ArrayList<JsonObject>();
@@ -246,7 +259,7 @@ final class StructureGameplay {
     static synchronized CompletableFuture<Index> cached(MinecraftServer server) {
         var rm = server.getResourceManager();
         var access = server.registryAccess();
-        if (owner != rm || index == null || index.isCompletedExceptionally()) {
+        if (owner != rm || index == null) {
             owner = rm;
             index = CompletableFuture.supplyAsync(() -> build(rm, access), Util.ioPool());
         }

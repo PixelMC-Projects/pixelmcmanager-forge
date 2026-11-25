@@ -6,6 +6,8 @@ import { WorldView } from './WorldView';
 import { PlayerRoster } from './PlayerRoster';
 import {Archives} from './Archives';
 import { Management, initialManagement } from './Management';
+import { useRegisteredExtensions } from './extensionRegistry';
+import { WENZHOU_ID } from './wenzhouRoutes';
 
 function PanelHeading({ children, note }) { return <div className="detail-section-heading"><h2>{children}</h2>{note && <span>{note}</span>}</div>; }
 
@@ -24,5 +26,6 @@ export function DetailView({ page, telemetry: t, preferences, setPreferences, na
 }
 
 export function SettingsView({preferences, setPreferences, toast}) {
-  return <div className="detail-scroll"><div className="detail-inner system-settings"><div className="preferences-panel"><div className="setting-row"><div><strong>界面主题</strong><p>选择此浏览器使用的外观。</p></div><div className="theme-segment" aria-label="外观主题"><button className={preferences.theme === 'dark' ? 'selected' : ''} aria-pressed={preferences.theme === 'dark'} onClick={() => setPreferences(p => ({ ...p, theme: 'dark' }))}><Moon size={14}/>深色</button><button className={preferences.theme === 'light' ? 'selected' : ''} aria-pressed={preferences.theme === 'light'} onClick={() => setPreferences(p => ({ ...p, theme: 'light' }))}><Sun size={14}/>浅色</button></div></div><Toggle label="抽签模块入口" description="在侧栏与主页显示已启用的抽签扩展。" checked={preferences.fortunes} change={value => setPreferences(p => ({ ...p, fortunes: value }))}/><Toggle label="手册模块入口" description="在侧栏显示已启用的玩家手册管理。" checked={preferences.hub!==false} change={value => setPreferences(p => ({ ...p, hub: value }))}/><Toggle label="称号模块入口" description="在侧栏与主页显示称号功能。" checked={preferences.titles} change={value => setPreferences(p => ({ ...p, titles: value }))}/></div><Archives toast={toast}/></div></div>;
+  const wenzhou=useRegisteredExtensions(preferences).find(extension=>extension.id===WENZHOU_ID);
+  return <div className="detail-scroll"><div className="detail-inner system-settings"><div className="preferences-panel"><div className="setting-row"><div><strong>界面主题</strong><p>选择此浏览器使用的外观。</p></div><div className="theme-segment" aria-label="外观主题"><button className={preferences.theme === 'dark' ? 'selected' : ''} aria-pressed={preferences.theme === 'dark'} onClick={() => setPreferences(p => ({ ...p, theme: 'dark' }))}><Moon size={14}/>深色</button><button className={preferences.theme === 'light' ? 'selected' : ''} aria-pressed={preferences.theme === 'light'} onClick={() => setPreferences(p => ({ ...p, theme: 'light' }))}><Sun size={14}/>浅色</button></div></div><Toggle label="抽签模块入口" description="在侧栏与主页显示已启用的抽签扩展。" checked={preferences.fortunes} change={value => setPreferences(p => ({ ...p, fortunes: value }))}/><Toggle label="手册模块入口" description="在侧栏显示已启用的玩家手册管理。" checked={preferences.hub!==false} change={value => setPreferences(p => ({ ...p, hub: value }))}/>{wenzhou&&<Toggle label="问舟模块入口" description="在侧栏与主页显示已启用的问舟AI扩展。" checked={preferences[wenzhou.preference]!==false} change={value=>setPreferences(p=>({...p,[wenzhou.preference]:value}))}/>}<Toggle label="称号模块入口" description="在侧栏与主页显示称号功能。" checked={preferences.titles} change={value => setPreferences(p => ({ ...p, titles: value }))}/></div><Archives toast={toast}/></div></div>;
 }

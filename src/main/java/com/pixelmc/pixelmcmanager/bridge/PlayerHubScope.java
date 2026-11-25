@@ -23,23 +23,44 @@ public final class PlayerHubScope {
         this.cache = cache;
     }
 
-    public static PlayerHubScope open(Path configDirectory, Path bridgeDirectory) throws IOException {
-        PlayerHubScope value = new PlayerHubScope(identity(configDirectory.resolve("pixelmcmanager/player-hub-server-id.txt")),
-                identity(bridgeDirectory.resolve("world-id.txt")), bridgeDirectory.resolve("player-hub-scope.json"));
+    public static PlayerHubScope open(Path configDirectory, Path bridgeDirectory)
+            throws IOException {
+        PlayerHubScope value =
+                new PlayerHubScope(
+                        identity(
+                                configDirectory.resolve("pixelmcmanager/player-hub-server-id.txt")),
+                        identity(bridgeDirectory.resolve("world-id.txt")),
+                        bridgeDirectory.resolve("player-hub-scope.json"));
         if (Files.isRegularFile(value.cache) && Files.size(value.cache) <= 4096) {
-            try { value.pack = safePack(JsonParser.parseString(Files.readString(value.cache)).getAsJsonObject()); }
-            catch (RuntimeException invalid) { /* Unknown cached metadata stays unknown. */ }
+            try {
+                value.pack =
+                        safePack(
+                                JsonParser.parseString(Files.readString(value.cache))
+                                        .getAsJsonObject());
+            } catch (RuntimeException invalid) {
+                /* Unknown cached metadata stays unknown. */
+            }
         }
         return value;
     }
 
-    public String worldId() { return worldId; }
-    public void managed(boolean value) { managed = value; }
-    public void disconnected() { connected = false; }
+    public String worldId() {
+        return worldId;
+    }
+
+    public void managed(boolean value) {
+        managed = value;
+    }
+
+    public void disconnected() {
+        connected = false;
+    }
 
     public void hello(JsonObject response) throws IOException {
-        JsonObject next = response.has("archive") && response.get("archive").isJsonObject()
-                ? safePack(response.getAsJsonObject("archive")) : null;
+        JsonObject next =
+                response.has("archive") && response.get("archive").isJsonObject()
+                        ? safePack(response.getAsJsonObject("archive"))
+                        : null;
         pack = next;
         connected = next != null;
         if (next == null) Files.deleteIfExists(cache);
@@ -49,13 +70,22 @@ public final class PlayerHubScope {
     public JsonObject snapshot() {
         JsonObject metadata = pack, value = new JsonObject();
         value.addProperty("serverId", serverId);
-        // This is the stable gameplay save identity, not the service's administrative archive row ID.
+        // This is the stable gameplay save identity, not the service's administrative archive row
+        // ID.
         value.addProperty("archiveId", worldId);
-        value.addProperty("packName", managed && metadata != null ? metadata.get("packName").getAsString() : "");
-        value.addProperty("packVersion", managed && metadata != null ? metadata.get("packVersion").getAsString() : "");
+        value.addProperty(
+                "packName",
+                managed && metadata != null ? metadata.get("packName").getAsString() : "");
+        value.addProperty(
+                "packVersion",
+                managed && metadata != null ? metadata.get("packVersion").getAsString() : "");
         value.addProperty("timezone", ZoneId.systemDefault().getId());
         value.addProperty("metadataAvailable", managed && metadata != null);
-        value.addProperty("metadataStatus", !managed ? "standalone" : metadata == null ? "unavailable" : connected ? "current" : "cached");
+        value.addProperty(
+                "metadataStatus",
+                !managed
+                        ? "standalone"
+                        : metadata == null ? "unavailable" : connected ? "current" : "cached");
         return value;
     }
 
@@ -69,7 +99,9 @@ public final class PlayerHubScope {
     }
 
     private static String text(JsonObject raw, String key, int limit) {
-        if (!raw.has(key) || !raw.get(key).isJsonPrimitive() || !raw.get(key).getAsJsonPrimitive().isString())
+        if (!raw.has(key)
+                || !raw.get(key).isJsonPrimitive()
+                || !raw.get(key).getAsJsonPrimitive().isString())
             throw new IllegalArgumentException("Invalid pack metadata");
         String text = raw.get(key).getAsString();
         if (text.length() > limit) throw new IllegalArgumentException("Invalid pack metadata");
@@ -87,7 +119,14 @@ public final class PlayerHubScope {
         Files.createDirectories(file.getParent());
         Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
         Files.writeString(temporary, value);
-        try { Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE); }
-        catch (AtomicMoveNotSupportedException unsupported) { Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING); }
+        try {
+            Files.move(
+                    temporary,
+                    file,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException unsupported) {
+            Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 }

@@ -57,3 +57,8 @@ Isolated browser checks covered real login, profile save, fortune choice beyond 
 Archive covers currently use the explicit server defaults `arcs` with `sage` for current and `mist` for historical. Per-archive cover administration is outside this increment because no historical artwork metadata exists in Manager's archive source. Historical prose and missing acquisitions are never filled from Web fixtures.
 
 The DailyFortunes change is limited to three trusted unified-service read adapters and a public acquisition projection in `FortuneBackend`. It is compiled into Manager service; this integration does not require a changed standalone DailyFortunes game JAR or alter the fortune-barrel behavior.
+
+
+### Shared archive counts for the winter station
+
+The existing game `community.snapshot` response may include `sharedArchiveCounts`. It maps up to 128 admitted peer UUIDs to the count of public archive memberships shared with the viewer in the authenticated instance. Manager derives peers from authenticated game presence, excludes the viewer and inaccessible profiles, and verifies peer presence again before replying. A missing peer entry means the count is unavailable. The response carries no archive IDs or player names. The existing snapshot and community-change hints carry the data without additional requests or schema changes.
