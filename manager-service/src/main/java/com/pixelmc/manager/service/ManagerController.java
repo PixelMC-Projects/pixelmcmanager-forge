@@ -1,13 +1,16 @@
 package com.pixelmc.manager.service;
 
 import static com.pixelmc.manager.service.Wire.*;
+
+import cn.pixelmc.dailyfortunes.service.FortuneBackend;
+import cn.pixelmc.dailyfortunes.service.FortuneRpcResponse;
 import cn.pixelmc.memorialtitles.domain.Model.*;
 import cn.pixelmc.memorialtitles.service.*;
 import cn.pixelmc.memorialtitles.web.*;
+
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpExchange;
-import cn.pixelmc.dailyfortunes.service.FortuneBackend;
-import cn.pixelmc.dailyfortunes.service.FortuneRpcResponse;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -51,12 +54,16 @@ public final class ManagerController implements PlatformWebServer.Host, AutoClos
     private volatile long nextBackup, lastBackup;
     private volatile String maintenanceError = "";
     private volatile boolean platformReady;
+    private volatile long offsiteStatusCheckedAt;
+    private volatile JsonObject cachedOffsiteStatus;
     private final Map<String, long[]> limits = new HashMap<>();
+    private final ModpackPrelaunchGateway modpackGateway;
 
     public ManagerController(ServiceConfig config, Path data) throws Exception {
         this.config = config;
         this.data = data;
         Files.createDirectories(data);
+        this.modpackGateway = ModpackPrelaunchGateway.startFromEnvironment();
         store = new ManagerStore(config.database());
         platform = new PlatformStore(store);
         wenzhou =
@@ -352,6 +359,14 @@ public final class ManagerController implements PlatformWebServer.Host, AutoClos
 
     @Override
     public boolean publicRoute(HttpExchange e, String path) throws Exception {
+        if ("/api/modpack/prelaunch".equals(path)) {
+            if (modpackGateway == null) {
+                json(e, 404, Map.of("error", "未启用整合包预启动同步网关"));
+                return true;
+            }
+            modpackGateway.handle(e);
+            return true;
+        }
         if (!path.startsWith("/bridge/")) return false;
         if (!e.getRequestMethod().equals("POST")
                 || e.getRequestHeaders().getFirst("Origin") != null) {
@@ -838,7 +853,122 @@ public final class ManagerController implements PlatformWebServer.Host, AutoClos
         out.addProperty("titleRevision", boot + ":" + titleRevision.get());
         out.addProperty("maintenanceError", maintenanceError);
         out.addProperty("lastBackup", lastBackup);
+        out.add("offsiteBackup", offsiteBackupStatus());
         return out;
+    }
+
+    JsonObject offsiteBackupStatus() {
+        long now = System.currentTimeMillis();
+        JsonObject cached = cachedOffsiteStatus;
+        if (cached != null && now - offsiteStatusCheckedAt < 15_000L) {
+            return cached.deepCopy();
+        }
+        JsonObject fresh = readOffsiteBackupStatus(resolveOffsiteStatusPath(), now);
+        cachedOffsiteStatus = fresh;
+        offsiteStatusCheckedAt = now;
+        return fresh.deepCopy();
+    }
+
+    private Path resolveOffsiteStatusPath() {
+        String env = System.getenv("PIXELMC_OFFSITE_BACKUP_STATUS_FILE");
+        if (env != null && !env.isBlank()) {
+            return Path.of(env.trim());
+        }
+        Path normalized = data.toAbsolutePath().normalize();
+        Path parent = normalized.getParent();
+        if (parent != null) {
+            Path besideConfig = parent.resolve("offsite-status/status.json");
+            if (Files.isRegularFile(besideConfig)) return besideConfig;
+        }
+        return normalized.resolve("offsite-status/status.json");
+    }
+
+    static JsonObject readOffsiteBackupStatus(Path statusFile, long nowMs) {
+        JsonObject out = new JsonObject();
+        if (statusFile == null
+                || Files.isSymbolicLink(statusFile)
+                || !Files.isRegularFile(statusFile)) {
+            out.addProperty("configured", false);
+            out.addProperty("healthy", true);
+            return out;
+        }
+        out.addProperty("configured", true);
+        try {
+            if (Files.size(statusFile) > 16_384L) {
+                throw new IllegalStateException("状态文件体积异常");
+            }
+            JsonElement parsed =
+                    JsonParser.parseString(Files.readString(statusFile, StandardCharsets.UTF_8));
+            if (!parsed.isJsonObject()) throw new IllegalStateException("状态文件格式无效");
+            JsonObject raw = parsed.getAsJsonObject();
+            String state = jsonStr(raw, "state");
+            String lastSuccess = jsonStr(raw, "last_success");
+            String lastAttempt = jsonStr(raw, "last_attempt");
+            String error = jsonStr(raw, "error");
+            long staleHours = -1L;
+            boolean stale = true;
+            if (!lastSuccess.isBlank()) {
+                try {
+                    long successMs = java.time.Instant.parse(lastSuccess).toEpochMilli();
+                    long ageMs = Math.max(0L, nowMs - successMs);
+                    staleHours = ageMs / 3_600_000L;
+                    stale = ageMs > 24L * 3_600_000L;
+                } catch (Exception ignored) {
+                    stale = true;
+                }
+            }
+            boolean okState = "ok".equalsIgnoreCase(state);
+            boolean healthy = okState && !stale;
+            out.addProperty("healthy", healthy);
+            out.addProperty("state", state.isBlank() ? "unknown" : state);
+            out.addProperty("stale", stale);
+            out.addProperty("staleHours", staleHours);
+            out.addProperty("lastSuccess", lastSuccess);
+            out.addProperty("lastAttempt", lastAttempt);
+            if (raw.has("captured_files") && raw.get("captured_files").isJsonPrimitive()) {
+                out.addProperty("capturedFiles", raw.get("captured_files").getAsInt());
+            }
+            if (raw.has("bytes_processed") && raw.get("bytes_processed").isJsonPrimitive()) {
+                out.addProperty("bytesProcessed", raw.get("bytes_processed").getAsLong());
+            }
+            if (!error.isBlank()) {
+                out.addProperty("error", error.length() > 240 ? error.substring(0, 240) : error);
+            }
+            if (!healthy) {
+                StringBuilder warning = new StringBuilder();
+                if (!okState) {
+                    warning.append("数据库异地备份失败");
+                    if (staleHours >= 0) {
+                        warning.append("（距上次成功已约 ").append(staleHours).append(" 小时）");
+                    }
+                    if (!error.isBlank()) {
+                        String brief = error.length() > 140 ? error.substring(0, 140) + "…" : error;
+                        warning.append("：").append(brief);
+                    } else {
+                        warning.append("，请检查服务器备份服务日志。");
+                    }
+                } else {
+                    warning.append("数据库异地备份已超过 ")
+                            .append(Math.max(24L, staleHours))
+                            .append(" 小时未成功，请检查服务器定时备份任务。");
+                }
+                out.addProperty("warning", warning.toString());
+            }
+            return out;
+        } catch (Exception e) {
+            out.addProperty("healthy", false);
+            out.addProperty("state", "error");
+            out.addProperty("stale", true);
+            out.addProperty("warning", "数据库异地备份状态文件读取失败，请检查服务器备份服务。");
+            return out;
+        }
+    }
+
+    private static String jsonStr(JsonObject obj, String key) {
+        if (!obj.has(key) || obj.get(key).isJsonNull() || !obj.get(key).isJsonPrimitive()) {
+            return "";
+        }
+        return obj.get(key).getAsString().trim();
     }
 
     private void avatars(JsonObject state) {
@@ -1802,6 +1932,7 @@ public final class ManagerController implements PlatformWebServer.Host, AutoClos
         }
         try {
             tasks.shutdownNow();
+            if (modpackGateway != null) modpackGateway.close();
             if (web != null) web.close();
             if (wenzhou != null) wenzhou.close();
             if (fortunes != null) fortunes.close();

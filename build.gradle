@@ -266,3 +266,9 @@ tasks.register("playerHubBridgeTest",JavaExec) { dependsOn "managerChecksClasses
 
 tasks.register("bridgeRuntimeLifecycleTest", JavaExec) { dependsOn restartChecksClasses; classpath=sourceSets.restartChecks.runtimeClasspath + sourceSets.main.compileClasspath; mainClass="com.pixelmc.pixelmcmanager.bridge.BridgeRuntimeLifecycleTest" }
 tasks.named("check").configure { dependsOn "bridgeRuntimeLifecycleTest" }
+
+tasks.register("modpackGatewayTest", JavaExec) {
+    dependsOn "managerChecksClasses"
+    classpath = sourceSets.managerChecks.runtimeClasspath
+    mainClass = "com.pixelmc.manager.service.ModpackPrelaunchGatewayChecks"
+}
