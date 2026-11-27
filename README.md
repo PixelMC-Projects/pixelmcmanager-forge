@@ -54,6 +54,6 @@ For Minecraft **1.21.1 / NeoForge**. Install on the server only; Java 21.
 
 原作者 / Original author: [zcpu · PixelMC](https://github.com/zcpu954861).
 
-[AGPL-3.0-only](LICENSE) · [Minecraft linking permission](LICENSE-EXCEPTION.md).
-保留版权与署名；分发修改版或使用修改版提供联网服务时，按许可证提供对应源码。
-Retain copyright and attribution; provide corresponding source when distributing modifications or offering modified software over a network, as required by the license.
+[Apache-2.0](LICENSE) · [NOTICE](NOTICE).
+按许可证保留版权、许可与署名声明，并对修改文件标注变更。
+Retain copyright, license, and attribution notices, and identify modified files as required by the license.

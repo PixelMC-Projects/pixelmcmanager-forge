@@ -131,7 +131,6 @@ tasks.named('check').configure { dependsOn 'lifecycleShutdownTest' }
 tasks.withType(Jar).configureEach {
     from(rootProject.file('LICENSE')) { into 'META-INF/pixelmc' }
     from(rootProject.file('NOTICE')) { into 'META-INF/pixelmc' }
-    from(rootProject.file('LICENSE-EXCEPTION.md')) { into 'META-INF/pixelmc' }
 }
 
 

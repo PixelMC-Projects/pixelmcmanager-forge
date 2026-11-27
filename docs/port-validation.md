@@ -31,4 +31,4 @@ The1.21 protocol test library initially omitted the normal configuration ping/po
 - Shared service: `pixelmc-manager-service-0.6.0.web.2.zip`, SHA256 `a285efc26f30db6a14242eec6f2ea0fe446f0eb3562c946815eb0d31fc810184`.
 - Separate restart supervisor: `pixelmcmanager-restart-supervisor-0.6.0.zip`, SHA256 `aeaa47f24039e9799a32ba94305707a52f6ae96b2ca65e70561dd926c7ff40fc`.
 
-JAR includes AGPLv3, original-author NOTICE and Minecraft linking permission. Existing Forge1.20.1 and Fabric26.x game code is unchanged; their default READMEs only gain the cross-version support table.
+JAR includes Apache-2.0 LICENSE and original-author NOTICE. Existing Forge1.20.1 and Fabric26.x game code is unchanged; their default READMEs only gain the cross-version support table.
