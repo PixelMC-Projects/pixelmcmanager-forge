@@ -28,7 +28,17 @@ public final class WelcomeEventHandler {
     private final com.pixelmc.pixelmcmanager.bridge.BridgeAgent bridge;
     private long lastStatsCheckpointMillis = 0L;
 
-    public WelcomeEventHandler(WelcomeConfigManager configManager, PlayerStatsStore statsStore, AuditService auditService, DelayedMessageScheduler scheduler, AnnouncementScheduler announcementScheduler, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler, ServerRuntimeStats runtimeStats, IdleRestartScheduler restartScheduler, com.pixelmc.pixelmcmanager.bridge.BridgeAgent bridge) {
+    public WelcomeEventHandler(
+            WelcomeConfigManager configManager,
+            PlayerStatsStore statsStore,
+            AuditService auditService,
+            DelayedMessageScheduler scheduler,
+            AnnouncementScheduler announcementScheduler,
+            StopServerScheduler stopServerScheduler,
+            MaintenanceScheduler maintenanceScheduler,
+            ServerRuntimeStats runtimeStats,
+            IdleRestartScheduler restartScheduler,
+            com.pixelmc.pixelmcmanager.bridge.BridgeAgent bridge) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.auditService = auditService;
@@ -105,7 +115,8 @@ public final class WelcomeEventHandler {
 
         long nowMillis = System.currentTimeMillis();
         long intervalMillis = configManager.getConfig().statsAutoSaveSeconds * 1_000L;
-        if (lastStatsCheckpointMillis <= 0L || nowMillis - lastStatsCheckpointMillis >= intervalMillis) {
+        if (lastStatsCheckpointMillis <= 0L
+                || nowMillis - lastStatsCheckpointMillis >= intervalMillis) {
             statsStore.checkpointOnlinePlayers(event.getServer(), nowMillis, true);
             lastStatsCheckpointMillis = nowMillis;
         }

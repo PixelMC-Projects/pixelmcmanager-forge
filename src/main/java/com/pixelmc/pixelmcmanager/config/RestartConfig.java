@@ -6,6 +6,7 @@ public final class RestartConfig {
     public int metadataRecheckSeconds = 60;
 
     public void normalize() {
-        if (metadataRecheckSeconds < 30 || metadataRecheckSeconds > 3600) metadataRecheckSeconds = 60;
+        if (metadataRecheckSeconds < 30 || metadataRecheckSeconds > 3600)
+            metadataRecheckSeconds = 60;
     }
 }

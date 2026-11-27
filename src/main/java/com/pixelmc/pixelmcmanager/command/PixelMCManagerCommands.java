@@ -40,9 +40,12 @@ import java.util.List;
 import java.util.Optional;
 
 public final class PixelMCManagerCommands {
-    private static final DateTimeFormatter STATUS_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
-    private static final List<String> STOPSERVER_SUGGESTIONS = List.of("cancel", "status", "10s", "30s", "1m", "5m", "10m", "1h");
-    private static final List<String> MAINTENANCE_SUGGESTIONS = List.of("now", "off", "status", "10s", "30s", "1m", "5m", "10m", "1h");
+    private static final DateTimeFormatter STATUS_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+    private static final List<String> STOPSERVER_SUGGESTIONS =
+            List.of("cancel", "status", "10s", "30s", "1m", "5m", "10m", "1h");
+    private static final List<String> MAINTENANCE_SUGGESTIONS =
+            List.of("now", "off", "status", "10s", "30s", "1m", "5m", "10m", "1h");
     private static final List<String> AUDIT_COUNT_SUGGESTIONS = List.of("10", "20", "30", "50");
     private static final int DEFAULT_AUDIT_COUNT = 10;
     private static final int MAX_AUDIT_COUNT = 50;
@@ -57,7 +60,16 @@ public final class PixelMCManagerCommands {
     private final ServerRuntimeStats runtimeStats;
     private final IdleRestartScheduler restartScheduler;
 
-    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, AuditService auditService, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler, ServerRuntimeStats runtimeStats, IdleRestartScheduler restartScheduler) {
+    public PixelMCManagerCommands(
+            WelcomeConfigManager configManager,
+            PlayerStatsStore statsStore,
+            AuditService auditService,
+            PlaceholderResolver placeholderResolver,
+            TextTemplateParser textParser,
+            StopServerScheduler stopServerScheduler,
+            MaintenanceScheduler maintenanceScheduler,
+            ServerRuntimeStats runtimeStats,
+            IdleRestartScheduler restartScheduler) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.auditService = auditService;
@@ -79,81 +91,247 @@ public final class PixelMCManagerCommands {
     private com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> managerRoot() {
         return Commands.literal("pixelmcmanager")
                 .executes(context -> help(context.getSource()))
-                .then(Commands.literal("reload")
-                        .requires(source -> hasPermission(source, permissions().reloadLevel))
-                        .executes(context -> reload(context.getSource())))
-                .then(Commands.literal("preview")
-                        .requires(source -> hasPermission(source, permissions().previewLevel))
-                        .executes(context -> preview(context.getSource(), false))
-                        .then(Commands.literal("first")
-                                .executes(context -> preview(context.getSource(), true)))
-                        .then(Commands.literal("returning")
-                                .executes(context -> preview(context.getSource(), false))))
-                .then(Commands.literal("logincount")
-                        .requires(source -> hasPermission(source, permissions().statsLevel))
-                        .executes(context -> listLoginCounts(context.getSource()))
-                        .then(Commands.argument("player", StringArgumentType.word())
-                                .suggests((context, builder) -> {
-                                    if (!statsStore.ensureLoaded(context.getSource().getServer())) {
-                                        return builder.buildFuture();
-                                    }
-                                    return SharedSuggestionProvider.suggest(statsStore.listKnownPlayerNames(), builder);
-                                })
-                                .executes(context -> showLoginCount(context.getSource(), StringArgumentType.getString(context, "player")))))
-                .then(Commands.literal("logintime")
-                        .requires(source -> hasPermission(source, permissions().statsLevel))
-                        .executes(context -> listLoginTimes(context.getSource()))
-                        .then(Commands.argument("player", StringArgumentType.word())
-                                .suggests((context, builder) -> {
-                                    if (!statsStore.ensureLoaded(context.getSource().getServer())) {
-                                        return builder.buildFuture();
-                                    }
-                                    return SharedSuggestionProvider.suggest(statsStore.listKnownPlayerNames(), builder);
-                                })
-                                .executes(context -> showLoginTime(context.getSource(), StringArgumentType.getString(context, "player")))))
-                .then(Commands.literal("save")
-                        .requires(source -> hasPermission(source, permissions().saveLevel))
-                        .executes(context -> save(context.getSource())))
-                .then(Commands.literal("stats")
-                        .requires(source -> hasPermission(source, permissions().serverStatsLevel))
-                        .executes(context -> serverStats(context.getSource())))
-                .then(Commands.literal("stopserver")
-                        .requires(source -> hasPermission(source, permissions().stopserverLevel))
-                        .then(Commands.literal("cancel")
-                                .executes(context -> cancelStopServer(context.getSource())))
-                        .then(Commands.literal("status")
-                                .executes(context -> stopServerStatus(context.getSource())))
-                        .then(Commands.argument("time", StringArgumentType.word())
-                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(STOPSERVER_SUGGESTIONS, builder))
-                                .executes(context -> stopServer(context.getSource(), StringArgumentType.getString(context, "time")))))
-                .then(Commands.literal("restart")
-                        .requires(source -> hasPermission(source, permissions().restartLevel))
-                        .then(Commands.literal("whenempty").executes(context -> restartAction(context.getSource(), "whenempty")))
-                        .then(Commands.literal("cancel").executes(context -> restartAction(context.getSource(), "cancel")))
-                        .then(Commands.literal("status").executes(context -> restartAction(context.getSource(), "status")))
-                        .then(Commands.literal("onmodchange")
-                                .then(Commands.literal("on").executes(context -> restartAction(context.getSource(), "on")))
-                                .then(Commands.literal("off").executes(context -> restartAction(context.getSource(), "off")))
-                                .then(Commands.literal("status").executes(context -> restartAction(context.getSource(), "status")))))
-                .then(Commands.literal("maintenance")
-                        .requires(source -> hasPermission(source, permissions().maintenanceLevel))
-                        .then(Commands.literal("now")
-                                .executes(context -> startMaintenanceNow(context.getSource())))
-                        .then(Commands.literal("off")
-                                .executes(context -> turnOffMaintenance(context.getSource())))
-                        .then(Commands.literal("status")
-                                .executes(context -> maintenanceStatus(context.getSource())))
-                        .then(Commands.argument("time", StringArgumentType.word())
-                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(MAINTENANCE_SUGGESTIONS, builder))
-                                .executes(context -> scheduleMaintenance(context.getSource(), StringArgumentType.getString(context, "time")))))
-                .then(Commands.literal("audit")
-                        .requires(source -> hasPermission(source, permissions().auditLevel))
-                        .executes(context -> showAudit(context.getSource(), DEFAULT_AUDIT_COUNT))
-                        .then(Commands.literal("last")
-                                .executes(context -> showAudit(context.getSource(), DEFAULT_AUDIT_COUNT))
-                                .then(Commands.argument("count", IntegerArgumentType.integer())
-                                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(AUDIT_COUNT_SUGGESTIONS, builder))
-                                        .executes(context -> showAudit(context.getSource(), IntegerArgumentType.getInteger(context, "count"))))));
+                .then(
+                        Commands.literal("reload")
+                                .requires(
+                                        source -> hasPermission(source, permissions().reloadLevel))
+                                .executes(context -> reload(context.getSource())))
+                .then(
+                        Commands.literal("preview")
+                                .requires(
+                                        source -> hasPermission(source, permissions().previewLevel))
+                                .executes(context -> preview(context.getSource(), false))
+                                .then(
+                                        Commands.literal("first")
+                                                .executes(
+                                                        context ->
+                                                                preview(context.getSource(), true)))
+                                .then(
+                                        Commands.literal("returning")
+                                                .executes(
+                                                        context ->
+                                                                preview(
+                                                                        context.getSource(),
+                                                                        false))))
+                .then(
+                        Commands.literal("logincount")
+                                .requires(source -> hasPermission(source, permissions().statsLevel))
+                                .executes(context -> listLoginCounts(context.getSource()))
+                                .then(
+                                        Commands.argument("player", StringArgumentType.word())
+                                                .suggests(
+                                                        (context, builder) -> {
+                                                            if (!statsStore.ensureLoaded(
+                                                                    context.getSource()
+                                                                            .getServer())) {
+                                                                return builder.buildFuture();
+                                                            }
+                                                            return SharedSuggestionProvider.suggest(
+                                                                    statsStore
+                                                                            .listKnownPlayerNames(),
+                                                                    builder);
+                                                        })
+                                                .executes(
+                                                        context ->
+                                                                showLoginCount(
+                                                                        context.getSource(),
+                                                                        StringArgumentType
+                                                                                .getString(
+                                                                                        context,
+                                                                                        "player")))))
+                .then(
+                        Commands.literal("logintime")
+                                .requires(source -> hasPermission(source, permissions().statsLevel))
+                                .executes(context -> listLoginTimes(context.getSource()))
+                                .then(
+                                        Commands.argument("player", StringArgumentType.word())
+                                                .suggests(
+                                                        (context, builder) -> {
+                                                            if (!statsStore.ensureLoaded(
+                                                                    context.getSource()
+                                                                            .getServer())) {
+                                                                return builder.buildFuture();
+                                                            }
+                                                            return SharedSuggestionProvider.suggest(
+                                                                    statsStore
+                                                                            .listKnownPlayerNames(),
+                                                                    builder);
+                                                        })
+                                                .executes(
+                                                        context ->
+                                                                showLoginTime(
+                                                                        context.getSource(),
+                                                                        StringArgumentType
+                                                                                .getString(
+                                                                                        context,
+                                                                                        "player")))))
+                .then(
+                        Commands.literal("save")
+                                .requires(source -> hasPermission(source, permissions().saveLevel))
+                                .executes(context -> save(context.getSource())))
+                .then(
+                        Commands.literal("stats")
+                                .requires(
+                                        source ->
+                                                hasPermission(
+                                                        source, permissions().serverStatsLevel))
+                                .executes(context -> serverStats(context.getSource())))
+                .then(
+                        Commands.literal("stopserver")
+                                .requires(
+                                        source ->
+                                                hasPermission(
+                                                        source, permissions().stopserverLevel))
+                                .then(
+                                        Commands.literal("cancel")
+                                                .executes(
+                                                        context ->
+                                                                cancelStopServer(
+                                                                        context.getSource())))
+                                .then(
+                                        Commands.literal("status")
+                                                .executes(
+                                                        context ->
+                                                                stopServerStatus(
+                                                                        context.getSource())))
+                                .then(
+                                        Commands.argument("time", StringArgumentType.word())
+                                                .suggests(
+                                                        (context, builder) ->
+                                                                SharedSuggestionProvider.suggest(
+                                                                        STOPSERVER_SUGGESTIONS,
+                                                                        builder))
+                                                .executes(
+                                                        context ->
+                                                                stopServer(
+                                                                        context.getSource(),
+                                                                        StringArgumentType
+                                                                                .getString(
+                                                                                        context,
+                                                                                        "time")))))
+                .then(
+                        Commands.literal("restart")
+                                .requires(
+                                        source -> hasPermission(source, permissions().restartLevel))
+                                .then(
+                                        Commands.literal("whenempty")
+                                                .executes(
+                                                        context ->
+                                                                restartAction(
+                                                                        context.getSource(),
+                                                                        "whenempty")))
+                                .then(
+                                        Commands.literal("cancel")
+                                                .executes(
+                                                        context ->
+                                                                restartAction(
+                                                                        context.getSource(),
+                                                                        "cancel")))
+                                .then(
+                                        Commands.literal("status")
+                                                .executes(
+                                                        context ->
+                                                                restartAction(
+                                                                        context.getSource(),
+                                                                        "status")))
+                                .then(
+                                        Commands.literal("onmodchange")
+                                                .then(
+                                                        Commands.literal("on")
+                                                                .executes(
+                                                                        context ->
+                                                                                restartAction(
+                                                                                        context
+                                                                                                .getSource(),
+                                                                                        "on")))
+                                                .then(
+                                                        Commands.literal("off")
+                                                                .executes(
+                                                                        context ->
+                                                                                restartAction(
+                                                                                        context
+                                                                                                .getSource(),
+                                                                                        "off")))
+                                                .then(
+                                                        Commands.literal("status")
+                                                                .executes(
+                                                                        context ->
+                                                                                restartAction(
+                                                                                        context
+                                                                                                .getSource(),
+                                                                                        "status")))))
+                .then(
+                        Commands.literal("maintenance")
+                                .requires(
+                                        source ->
+                                                hasPermission(
+                                                        source, permissions().maintenanceLevel))
+                                .then(
+                                        Commands.literal("now")
+                                                .executes(
+                                                        context ->
+                                                                startMaintenanceNow(
+                                                                        context.getSource())))
+                                .then(
+                                        Commands.literal("off")
+                                                .executes(
+                                                        context ->
+                                                                turnOffMaintenance(
+                                                                        context.getSource())))
+                                .then(
+                                        Commands.literal("status")
+                                                .executes(
+                                                        context ->
+                                                                maintenanceStatus(
+                                                                        context.getSource())))
+                                .then(
+                                        Commands.argument("time", StringArgumentType.word())
+                                                .suggests(
+                                                        (context, builder) ->
+                                                                SharedSuggestionProvider.suggest(
+                                                                        MAINTENANCE_SUGGESTIONS,
+                                                                        builder))
+                                                .executes(
+                                                        context ->
+                                                                scheduleMaintenance(
+                                                                        context.getSource(),
+                                                                        StringArgumentType
+                                                                                .getString(
+                                                                                        context,
+                                                                                        "time")))))
+                .then(
+                        Commands.literal("audit")
+                                .requires(source -> hasPermission(source, permissions().auditLevel))
+                                .executes(
+                                        context ->
+                                                showAudit(context.getSource(), DEFAULT_AUDIT_COUNT))
+                                .then(
+                                        Commands.literal("last")
+                                                .executes(
+                                                        context ->
+                                                                showAudit(
+                                                                        context.getSource(),
+                                                                        DEFAULT_AUDIT_COUNT))
+                                                .then(
+                                                        Commands.argument(
+                                                                        "count",
+                                                                        IntegerArgumentType
+                                                                                .integer())
+                                                                .suggests(
+                                                                        (context, builder) ->
+                                                                                SharedSuggestionProvider
+                                                                                        .suggest(
+                                                                                                AUDIT_COUNT_SUGGESTIONS,
+                                                                                                builder))
+                                                                .executes(
+                                                                        context ->
+                                                                                showAudit(
+                                                                                        context
+                                                                                                .getSource(),
+                                                                                        IntegerArgumentType
+                                                                                                .getInteger(
+                                                                                                        context,
+                                                                                                        "count"))))));
     }
 
     private int help(CommandSourceStack source) {
@@ -174,15 +352,19 @@ public final class PixelMCManagerCommands {
 
     private int restartAction(CommandSourceStack source, String action) {
         try {
-            if (action.equals("status")) { send(source, "&e" + restartScheduler.status()); return Command.SINGLE_SUCCESS; }
+            if (action.equals("status")) {
+                send(source, "&e" + restartScheduler.status());
+                return Command.SINGLE_SUCCESS;
+            }
             String message;
             if (action.equals("whenempty")) message = restartScheduler.schedule();
             else if (action.equals("cancel")) message = restartScheduler.cancel();
             else {
                 boolean previous = configManager.getConfig().restart.restartOnModChange;
                 configManager.getConfig().restart.restartOnModChange = action.equals("on");
-                try { configManager.saveCurrent(); }
-                catch (Exception e) {
+                try {
+                    configManager.saveCurrent();
+                } catch (Exception e) {
                     configManager.getConfig().restart.restartOnModChange = previous;
                     throw new IllegalStateException("配置保存失败，自动重启开关保持原值。");
                 }
@@ -210,11 +392,17 @@ public final class PixelMCManagerCommands {
             configManager.saveCurrent();
             server.saveEverything(false, true, true);
             auditService.record(source, "save", "", "data saved");
-            source.sendSuccess(() -> textParser.parse("&a已保存 PixelMC Manager 数据并请求服务器保存世界。", configManager.getConfig()), false);
+            source.sendSuccess(
+                    () ->
+                            textParser.parse(
+                                    "&a已保存 PixelMC Manager 数据并请求服务器保存世界。",
+                                    configManager.getConfig()),
+                    false);
             return Command.SINGLE_SUCCESS;
         } catch (Exception exception) {
             PixelMCManager.LOGGER.error("Failed to save PixelMC Manager data or world.", exception);
-            source.sendFailure(textParser.parse("&c保存过程中出现错误，请检查服务器日志。", configManager.getConfig()));
+            source.sendFailure(
+                    textParser.parse("&c保存过程中出现错误，请检查服务器日志。", configManager.getConfig()));
             return 0;
         }
     }
@@ -228,27 +416,44 @@ public final class PixelMCManagerCommands {
         List<PlayerStatsEntry> entries = statsStore.listAll();
         ZoneId zoneId = ZoneId.systemDefault();
         long todayStart = LocalDate.now(zoneId).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long tomorrowStart = LocalDate.now(zoneId).plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long todayActive = entries.stream()
-                .filter(entry -> entry.stats().lastJoinEpochMillis >= todayStart && entry.stats().lastJoinEpochMillis < tomorrowStart)
-                .count();
-        long totalPlaytime = entries.stream()
-                .mapToLong(entry -> Math.max(0L, entry.stats().totalOnlineMillis))
-                .sum();
+        long tomorrowStart =
+                LocalDate.now(zoneId).plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
+        long todayActive =
+                entries.stream()
+                        .filter(
+                                entry ->
+                                        entry.stats().lastJoinEpochMillis >= todayStart
+                                                && entry.stats().lastJoinEpochMillis
+                                                        < tomorrowStart)
+                        .count();
+        long totalPlaytime =
+                entries.stream()
+                        .mapToLong(entry -> Math.max(0L, entry.stats().totalOnlineMillis))
+                        .sum();
 
         send(source, "&7❰ &b&l✦ &f&lPixelMC 服务器统计 &e&l✦ &7❱");
         send(source, "&f记录玩家数：&a" + entries.size());
-        send(source, "&f当前在线：&a" + server.getPlayerList().getPlayerCount() + "&7/&e" + server.getMaxPlayers());
+        send(
+                source,
+                "&f当前在线：&a"
+                        + server.getPlayerList().getPlayerCount()
+                        + "&7/&e"
+                        + server.getMaxPlayers());
         send(source, "&f今日活跃玩家：&a" + todayActive);
         send(source, "&f总累计游玩时长：&d" + TimeFormatUtil.formatFriendly(totalPlaytime));
-        send(source, "&f本次服务器运行时间：&b" + TimeFormatUtil.formatFriendly(runtimeStats.uptimeMillis(System.currentTimeMillis())));
+        send(
+                source,
+                "&f本次服务器运行时间：&b"
+                        + TimeFormatUtil.formatFriendly(
+                                runtimeStats.uptimeMillis(System.currentTimeMillis())));
         send(source, "&f维护状态：&6" + maintenanceState());
         return Command.SINGLE_SUCCESS;
     }
 
     private int showAudit(CommandSourceStack source, int count) {
         if (count < 1 || count > MAX_AUDIT_COUNT) {
-            source.sendFailure(textParser.parse("&c审计查询数量必须在 1 到 50 之间。", configManager.getConfig()));
+            source.sendFailure(
+                    textParser.parse("&c审计查询数量必须在 1 到 50 之间。", configManager.getConfig()));
             return 0;
         }
 
@@ -260,7 +465,15 @@ public final class PixelMCManagerCommands {
 
         send(source, "&9PixelMC 管理操作记录 最近 " + count + " 条");
         for (AuditEntry entry : entries) {
-            send(source, "&7[" + formatSystemTime(entry.time) + "] &e" + safeAuditText(entry.sourceName) + " &f执行 &b" + formatAuditAction(entry) + " &a成功");
+            send(
+                    source,
+                    "&7["
+                            + formatSystemTime(entry.time)
+                            + "] &e"
+                            + safeAuditText(entry.sourceName)
+                            + " &f执行 &b"
+                            + formatAuditAction(entry)
+                            + " &a成功");
         }
         return Command.SINGLE_SUCCESS;
     }
@@ -268,43 +481,63 @@ public final class PixelMCManagerCommands {
     private int scheduleMaintenance(CommandSourceStack source, String input) {
         TimeArgumentParser.Result parsed = TimeArgumentParser.parse(input);
         if (!parsed.success()) {
-            source.sendFailure(textParser.parse("&c" + parsed.errorMessage(), configManager.getConfig()));
+            source.sendFailure(
+                    textParser.parse("&c" + parsed.errorMessage(), configManager.getConfig()));
             return 0;
         }
 
-        boolean replaced = maintenanceScheduler.getStatusSnapshot().state() == MaintenanceScheduler.State.SCHEDULED;
-        MaintenanceScheduler.Result result = maintenanceScheduler.schedule(source.getServer(), parsed.duration());
+        boolean replaced =
+                maintenanceScheduler.getStatusSnapshot().state()
+                        == MaintenanceScheduler.State.SCHEDULED;
+        MaintenanceScheduler.Result result =
+                maintenanceScheduler.schedule(source.getServer(), parsed.duration());
         if (!result.success()) {
-            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
+            source.sendFailure(
+                    textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
         MaintenanceScheduler.StatusSnapshot snapshot = maintenanceScheduler.getStatusSnapshot();
-        auditService.record(source, replaced ? "maintenance_override" : "maintenance_schedule", input, "maintenanceStartTime=" + formatSystemTime(snapshot.maintenanceStartTimeMillis()));
-        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
+        auditService.record(
+                source,
+                replaced ? "maintenance_override" : "maintenance_schedule",
+                input,
+                "maintenanceStartTime=" + formatSystemTime(snapshot.maintenanceStartTimeMillis()));
+        source.sendSuccess(
+                () -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
 
     private int startMaintenanceNow(CommandSourceStack source) {
-        boolean replaced = maintenanceScheduler.getStatusSnapshot().state() == MaintenanceScheduler.State.SCHEDULED;
+        boolean replaced =
+                maintenanceScheduler.getStatusSnapshot().state()
+                        == MaintenanceScheduler.State.SCHEDULED;
         MaintenanceScheduler.Result result = maintenanceScheduler.startNow(source.getServer());
         if (!result.success()) {
-            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
+            source.sendFailure(
+                    textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
         MaintenanceScheduler.StatusSnapshot snapshot = maintenanceScheduler.getStatusSnapshot();
-        auditService.record(source, replaced ? "maintenance_now_override" : "maintenance_now", "", "maintenanceStartedAt=" + formatSystemTime(snapshot.maintenanceStartedAtMillis()));
-        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
+        auditService.record(
+                source,
+                replaced ? "maintenance_now_override" : "maintenance_now",
+                "",
+                "maintenanceStartedAt=" + formatSystemTime(snapshot.maintenanceStartedAtMillis()));
+        source.sendSuccess(
+                () -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
 
     private int turnOffMaintenance(CommandSourceStack source) {
         MaintenanceScheduler.Result result = maintenanceScheduler.turnOff();
         if (!result.success()) {
-            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
+            source.sendFailure(
+                    textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
         auditService.record(source, "maintenance_off", "", result.message());
-        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
+        source.sendSuccess(
+                () -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
 
@@ -315,21 +548,32 @@ public final class PixelMCManagerCommands {
             case SCHEDULED -> {
                 long nowMillis = System.currentTimeMillis();
                 send(source, "&e当前存在服务器维护计划。");
-                send(source, "&f距离进入维护：&b" + formatRemaining(snapshot.maintenanceStartTimeMillis() - nowMillis));
-                send(source, "&f维护开始时间：&a" + formatSystemTime(snapshot.maintenanceStartTimeMillis()));
+                send(
+                        source,
+                        "&f距离进入维护：&b"
+                                + formatRemaining(
+                                        snapshot.maintenanceStartTimeMillis() - nowMillis));
+                send(
+                        source,
+                        "&f维护开始时间：&a" + formatSystemTime(snapshot.maintenanceStartTimeMillis()));
                 send(source, "&f当前状态：&6等待维护开始");
             }
             case ACTIVE -> {
                 send(source, "&e服务器当前处于维护状态。");
-                send(source, "&f维护开始时间：&a" + formatSystemTime(snapshot.maintenanceStartedAtMillis()));
+                send(
+                        source,
+                        "&f维护开始时间：&a" + formatSystemTime(snapshot.maintenanceStartedAtMillis()));
                 send(source, "&f当前状态：&6拒绝玩家加入");
             }
         }
 
-        Optional<StopServerScheduler.PlanSnapshot> stopServerPlan = stopServerScheduler.getCurrentPlanSnapshot();
+        Optional<StopServerScheduler.PlanSnapshot> stopServerPlan =
+                stopServerScheduler.getCurrentPlanSnapshot();
         if (stopServerPlan.isPresent()) {
             if (stopServerPlan.get().maintenanceActive()) {
-                send(source, "&c注意：计划停服流程已进入停机维护阶段，将优先拒绝玩家加入。请使用 /pixelmcmanager stopserver status 查看。");
+                send(
+                        source,
+                        "&c注意：计划停服流程已进入停机维护阶段，将优先拒绝玩家加入。请使用 /pixelmcmanager stopserver status 查看。");
             } else {
                 send(source, "&e注意：当前还存在计划停服流程，请使用 /pixelmcmanager stopserver status 查看。");
             }
@@ -338,7 +582,8 @@ public final class PixelMCManagerCommands {
     }
 
     private int stopServerStatus(CommandSourceStack source) {
-        Optional<StopServerScheduler.PlanSnapshot> snapshot = stopServerScheduler.getCurrentPlanSnapshot();
+        Optional<StopServerScheduler.PlanSnapshot> snapshot =
+                stopServerScheduler.getCurrentPlanSnapshot();
         if (snapshot.isEmpty()) {
             send(source, "&a当前没有正在进行的服务器停机计划。");
             return Command.SINGLE_SUCCESS;
@@ -368,7 +613,8 @@ public final class PixelMCManagerCommands {
         return Command.SINGLE_SUCCESS;
     }
 
-    private void sendStopServerTimes(CommandSourceStack source, StopServerScheduler.PlanSnapshot plan) {
+    private void sendStopServerTimes(
+            CommandSourceStack source, StopServerScheduler.PlanSnapshot plan) {
         send(source, "&f维护开始时间：&a" + formatSystemTime(plan.kickTimeMillis()));
         send(source, "&f真正停服时间：&c" + formatSystemTime(plan.stopTimeMillis()));
     }
@@ -376,33 +622,42 @@ public final class PixelMCManagerCommands {
     private int cancelStopServer(CommandSourceStack source) {
         StopServerScheduler.ScheduleResult result = stopServerScheduler.cancel();
         if (!result.success()) {
-            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
+            source.sendFailure(
+                    textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
 
         auditService.record(source, "stopserver_cancel", "", result.message());
-        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
+        source.sendSuccess(
+                () -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
 
     private int stopServer(CommandSourceStack source, String input) {
         TimeArgumentParser.Result parsed = TimeArgumentParser.parse(input);
         if (!parsed.success()) {
-            source.sendFailure(textParser.parse("&c" + parsed.errorMessage(), configManager.getConfig()));
+            source.sendFailure(
+                    textParser.parse("&c" + parsed.errorMessage(), configManager.getConfig()));
             return 0;
         }
 
         boolean replaced = stopServerScheduler.getCurrentPlanSnapshot().isPresent();
-        StopServerScheduler.ScheduleResult result = stopServerScheduler.schedule(source.getServer(), parsed.duration());
+        StopServerScheduler.ScheduleResult result =
+                stopServerScheduler.schedule(source.getServer(), parsed.duration());
         if (!result.success()) {
-            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
+            source.sendFailure(
+                    textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
 
-        Optional<StopServerScheduler.PlanSnapshot> snapshot = stopServerScheduler.getCurrentPlanSnapshot();
-        String detail = snapshot.map(plan -> "kickTime=" + formatSystemTime(plan.kickTimeMillis())).orElse(result.message());
+        Optional<StopServerScheduler.PlanSnapshot> snapshot =
+                stopServerScheduler.getCurrentPlanSnapshot();
+        String detail =
+                snapshot.map(plan -> "kickTime=" + formatSystemTime(plan.kickTimeMillis()))
+                        .orElse(result.message());
         auditService.record(source, replaced ? "stopserver_override" : "stopserver", input, detail);
-        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
+        source.sendSuccess(
+                () -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
 
@@ -441,7 +696,8 @@ public final class PixelMCManagerCommands {
             stats.lastJoinEpochMillis = now;
         }
 
-        PlaceholderContext placeholderContext = new PlaceholderContext(player, config, stats, stats.lastJoinEpochMillis);
+        PlaceholderContext placeholderContext =
+                new PlaceholderContext(player, config, stats, stats.lastJoinEpochMillis);
         for (String template : templates) {
             String resolved = placeholderResolver.resolve(template, placeholderContext);
             player.sendSystemMessage(textParser.parse(resolved, config));
@@ -454,12 +710,20 @@ public final class PixelMCManagerCommands {
         if (!checkpointForQuery(source)) {
             return 0;
         }
-        List<PlayerStatsEntry> entries = statsStore.listAll().stream()
-                .sorted(Comparator
-                        .comparingInt((PlayerStatsEntry entry) -> entry.stats().joinCount).reversed()
-                        .thenComparing((PlayerStatsEntry entry) -> entry.stats().lastJoinEpochMillis, Comparator.reverseOrder())
-                        .thenComparing(entry -> safeName(entry.stats()), String.CASE_INSENSITIVE_ORDER))
-                .toList();
+        List<PlayerStatsEntry> entries =
+                statsStore.listAll().stream()
+                        .sorted(
+                                Comparator.comparingInt(
+                                                (PlayerStatsEntry entry) -> entry.stats().joinCount)
+                                        .reversed()
+                                        .thenComparing(
+                                                (PlayerStatsEntry entry) ->
+                                                        entry.stats().lastJoinEpochMillis,
+                                                Comparator.reverseOrder())
+                                        .thenComparing(
+                                                entry -> safeName(entry.stats()),
+                                                String.CASE_INSENSITIVE_ORDER))
+                        .toList();
 
         send(source, "&7❰ &b&l✦ &f&lPixelMC 登录次数 &e&l✦ &7❱");
         if (entries.isEmpty()) {
@@ -469,7 +733,16 @@ public final class PixelMCManagerCommands {
 
         for (int index = 0; index < entries.size(); index++) {
             PlayerStats stats = entries.get(index).stats();
-            send(source, "&8#" + (index + 1) + " &e" + safeName(stats) + " &7| &f登录 &a" + stats.joinCount + " &7次 | &f上次 &b" + formatDateTime(stats.lastJoinEpochMillis));
+            send(
+                    source,
+                    "&8#"
+                            + (index + 1)
+                            + " &e"
+                            + safeName(stats)
+                            + " &7| &f登录 &a"
+                            + stats.joinCount
+                            + " &7次 | &f上次 &b"
+                            + formatDateTime(stats.lastJoinEpochMillis));
         }
         return Command.SINGLE_SUCCESS;
     }
@@ -498,13 +771,24 @@ public final class PixelMCManagerCommands {
         if (!checkpointForQuery(source)) {
             return 0;
         }
-        List<PlayerStatsEntry> entries = statsStore.listAll().stream()
-                .sorted(Comparator
-                        .comparingLong((PlayerStatsEntry entry) -> entry.stats().totalOnlineMillis).reversed()
-                        .thenComparing((PlayerStatsEntry entry) -> entry.stats().joinCount, Comparator.reverseOrder())
-                        .thenComparing((PlayerStatsEntry entry) -> entry.stats().lastJoinEpochMillis, Comparator.reverseOrder())
-                        .thenComparing(entry -> safeName(entry.stats()), String.CASE_INSENSITIVE_ORDER))
-                .toList();
+        List<PlayerStatsEntry> entries =
+                statsStore.listAll().stream()
+                        .sorted(
+                                Comparator.comparingLong(
+                                                (PlayerStatsEntry entry) ->
+                                                        entry.stats().totalOnlineMillis)
+                                        .reversed()
+                                        .thenComparing(
+                                                (PlayerStatsEntry entry) -> entry.stats().joinCount,
+                                                Comparator.reverseOrder())
+                                        .thenComparing(
+                                                (PlayerStatsEntry entry) ->
+                                                        entry.stats().lastJoinEpochMillis,
+                                                Comparator.reverseOrder())
+                                        .thenComparing(
+                                                entry -> safeName(entry.stats()),
+                                                String.CASE_INSENSITIVE_ORDER))
+                        .toList();
 
         send(source, "&7❰ &b&l✦ &f&lPixelMC 登录总时间 &e&l✦ &7❱");
         if (entries.isEmpty()) {
@@ -514,7 +798,18 @@ public final class PixelMCManagerCommands {
 
         for (int index = 0; index < entries.size(); index++) {
             PlayerStats stats = entries.get(index).stats();
-            send(source, "&8#" + (index + 1) + " &e" + safeName(stats) + " &7| &f总时长 &d" + TimeFormatUtil.formatFriendly(stats.totalOnlineMillis) + " &7| &f登录 &a" + stats.joinCount + " &7次 | &f上次 &b" + formatDateTime(stats.lastJoinEpochMillis));
+            send(
+                    source,
+                    "&8#"
+                            + (index + 1)
+                            + " &e"
+                            + safeName(stats)
+                            + " &7| &f总时长 &d"
+                            + TimeFormatUtil.formatFriendly(stats.totalOnlineMillis)
+                            + " &7| &f登录 &a"
+                            + stats.joinCount
+                            + " &7次 | &f上次 &b"
+                            + formatDateTime(stats.lastJoinEpochMillis));
         }
         return Command.SINGLE_SUCCESS;
     }
@@ -550,7 +845,8 @@ public final class PixelMCManagerCommands {
     }
 
     private String maintenanceState() {
-        Optional<StopServerScheduler.PlanSnapshot> stopPlan = stopServerScheduler.getCurrentPlanSnapshot();
+        Optional<StopServerScheduler.PlanSnapshot> stopPlan =
+                stopServerScheduler.getCurrentPlanSnapshot();
         if (stopPlan.isPresent()) {
             return stopPlan.get().maintenanceActive() ? "停机维护中" : "计划停服中";
         }
@@ -579,7 +875,8 @@ public final class PixelMCManagerCommands {
 
     private String formatDateTime(long epochMillis) {
         WelcomeConfig config = configManager.getConfig();
-        return TimeFormatUtil.formatDateTime(epochMillis, config.timezone, config.dateFormat, config.timeFormat);
+        return TimeFormatUtil.formatDateTime(
+                epochMillis, config.timezone, config.dateFormat, config.timeFormat);
     }
 
     private static String formatSystemTime(long epochMillis) {
@@ -601,18 +898,19 @@ public final class PixelMCManagerCommands {
     }
 
     private static String formatAuditAction(AuditEntry entry) {
-        String action = switch (entry.action) {
-            case "stopserver" -> "stopserver " + entry.args;
-            case "stopserver_cancel" -> "stopserver cancel";
-            case "stopserver_override" -> "stopserver " + entry.args + " 覆盖旧计划";
-            case "maintenance_schedule" -> "maintenance " + entry.args;
-            case "maintenance_now" -> "maintenance now";
-            case "maintenance_off" -> "maintenance off";
-            case "maintenance_override" -> "maintenance " + entry.args + " 覆盖旧计划";
-            case "maintenance_now_override" -> "maintenance now 覆盖旧计划";
-            case "save" -> "save";
-            default -> entry.action;
-        };
+        String action =
+                switch (entry.action) {
+                    case "stopserver" -> "stopserver " + entry.args;
+                    case "stopserver_cancel" -> "stopserver cancel";
+                    case "stopserver_override" -> "stopserver " + entry.args + " 覆盖旧计划";
+                    case "maintenance_schedule" -> "maintenance " + entry.args;
+                    case "maintenance_now" -> "maintenance now";
+                    case "maintenance_off" -> "maintenance off";
+                    case "maintenance_override" -> "maintenance " + entry.args + " 覆盖旧计划";
+                    case "maintenance_now_override" -> "maintenance now 覆盖旧计划";
+                    case "save" -> "save";
+                    default -> entry.action;
+                };
         return safeAuditText(action);
     }
 

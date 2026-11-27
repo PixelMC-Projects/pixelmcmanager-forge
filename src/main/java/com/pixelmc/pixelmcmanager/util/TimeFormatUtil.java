@@ -5,8 +5,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 public final class TimeFormatUtil {
-    private TimeFormatUtil() {
-    }
+    private TimeFormatUtil() {}
 
     public static String formatFriendly(long millis) {
         long totalSeconds = Math.max(0L, millis) / 1_000L;
@@ -35,13 +34,15 @@ public final class TimeFormatUtil {
         return minutes + "分钟";
     }
 
-    public static String formatDateTime(long epochMillis, String timezone, String dateFormat, String timeFormat) {
+    public static String formatDateTime(
+            long epochMillis, String timezone, String dateFormat, String timeFormat) {
         if (epochMillis <= 0L) {
             return "未知";
         }
         try {
             ZoneId zoneId = ZoneId.of(timezone);
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat + " " + timeFormat).withZone(zoneId);
+            DateTimeFormatter formatter =
+                    DateTimeFormatter.ofPattern(dateFormat + " " + timeFormat).withZone(zoneId);
             return formatter.format(Instant.ofEpochMilli(epochMillis));
         } catch (RuntimeException ignored) {
             return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")

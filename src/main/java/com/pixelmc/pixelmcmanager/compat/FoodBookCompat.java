@@ -24,6 +24,7 @@ import net.minecraftforge.fml.ModList;
 /** Optional server-thread adapter. The SOL Carrot API never appears in a linked signature. */
 public final class FoodBookCompat {
     private record Access(Method get, Method progress, Method invalidate, Field foodsEaten) {}
+
     private record Sample(ServerPlayer owner, int count) {}
 
     private final Predicate<UUID> admitted;
@@ -44,14 +45,20 @@ public final class FoodBookCompat {
         this.server = server;
         installed = ModList.get().isLoaded("solcarrot");
         if (!installed) return;
-        version = ModList.get().getModContainerById("solcarrot")
-                .map(container -> container.getModInfo().getVersion().toString()).orElse("");
+        version =
+                ModList.get()
+                        .getModContainerById("solcarrot")
+                        .map(container -> container.getModInfo().getVersion().toString())
+                        .orElse("");
         try {
             Class<?> foodList = Class.forName("com.cazsius.solcarrot.tracking.FoodList");
             Class<?> progress = Class.forName("com.cazsius.solcarrot.tracking.ProgressInfo");
-            access = new Access(foodList.getMethod("get", Player.class),
-                    foodList.getMethod("getProgressInfo"), foodList.getMethod("invalidateProgressInfo"),
-                    progress.getField("foodsEaten"));
+            access =
+                    new Access(
+                            foodList.getMethod("get", Player.class),
+                            foodList.getMethod("getProgressInfo"),
+                            foodList.getMethod("invalidateProgressInfo"),
+                            progress.getField("foodsEaten"));
         } catch (ReflectiveOperationException | LinkageError unsupportedVersion) {
             access = null;
         }
@@ -82,14 +89,19 @@ public final class FoodBookCompat {
         result.addProperty("id", "solcarrot.effectiveFoods");
         result.addProperty("version", 1);
         result.addProperty("modVersion", version);
-        result.addProperty("status", !installed ? "unsupported" : access == null || !failed.isEmpty() ? "unavailable" : "ready");
+        result.addProperty(
+                "status",
+                !installed
+                        ? "unsupported"
+                        : access == null || !failed.isEmpty() ? "unavailable" : "ready");
         return result;
     }
 
     /** Adds a previously captured value to the existing bridge checkpoint. No capability read here. */
     public void append(ServerPlayer player, JsonObject stats) {
         Sample sample = samples.get(player.getUUID());
-        if (sample != null && sample.owner == player) stats.addProperty("effectiveFoods", sample.count);
+        if (sample != null && sample.owner == player)
+            stats.addProperty("effectiveFoods", sample.count);
     }
 
     public static int effectiveCount(Object foods) throws ReflectiveOperationException {
@@ -119,10 +131,11 @@ public final class FoodBookCompat {
     public void configurationReloaded(String modId) {
         MinecraftServer active = server;
         if (active == null || !modId.equals("solcarrot")) return;
-        active.execute(() -> {
-            if (server != active) return;
-            for (ServerPlayer player : active.getPlayerList().getPlayers()) login(player);
-        });
+        active.execute(
+                () -> {
+                    if (server != active) return;
+                    for (ServerPlayer player : active.getPlayerList().getPlayers()) login(player);
+                });
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)

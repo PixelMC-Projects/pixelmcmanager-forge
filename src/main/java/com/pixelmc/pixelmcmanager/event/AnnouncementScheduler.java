@@ -19,7 +19,10 @@ public final class AnnouncementScheduler {
     private long nextAnnouncementAtMillis = 0L;
     private int nextMessageIndex = 0;
 
-    public AnnouncementScheduler(WelcomeConfigManager configManager, PlaceholderResolver placeholderResolver, TextTemplateParser textParser) {
+    public AnnouncementScheduler(
+            WelcomeConfigManager configManager,
+            PlaceholderResolver placeholderResolver,
+            TextTemplateParser textParser) {
         this.configManager = configManager;
         this.placeholderResolver = placeholderResolver;
         this.textParser = textParser;

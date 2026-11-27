@@ -1,0 +1,35 @@
+.wza-module .wza-grid { display:grid; align-items:center; grid-template-columns:minmax(180px,2fr) minmax(80px,1fr) minmax(80px,1fr) minmax(60px,.7fr); gap:16px; }
+.wza-module .wza-grid.wza-chats { grid-template-columns:minmax(170px,2fr) minmax(100px,1fr) minmax(70px,.6fr) minmax(135px,1fr); }
+.wza-module .wza-record { width:100%; min-height:72px; padding:8px 30px; border:0; border-bottom:1px solid var(--soft-border); background:transparent; color:var(--text); text-align:left; cursor:pointer; }
+.wza-module .wza-record:hover { background:var(--surface); }
+.wza-module [data-compact="true"] .wza-record { min-height:48px; }
+.wza-record .player-link, .wza-record .player-identity { min-width:0; }
+.wza-record .wza-subject { font-weight:550; }
+.wza-record .wza-subject,.wza-record>span:not(.player-link) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wza-module .wza-granted { color:var(--success,var(--text)); }
+.wza-module .wza-player { margin-bottom:20px; }
+.wza-module .editor > [hidden] { display:none; }
+.wza-history { display:flex; align-items:center; gap:12px; width:100%; padding:14px 0; border:0; border-bottom:1px solid var(--soft-border); text-align:left; color:inherit; background:transparent; }
+.wza-history>span { flex:1; min-width:0; }
+.wza-history strong,.wza-history small { display:block; overflow-wrap:anywhere; }
+.wza-history small,.wza-thread-meta,.wza-turn time { color:var(--muted); font-size:11px; }
+.wza-thread-meta,.wza-turn h3 { display:flex; flex-wrap:wrap; align-items:baseline; gap:12px; }
+.wza-thread-usage { margin-top:4px; gap:2px 10px; font-variant-numeric:tabular-nums; }
+.wza-thread-usage span { white-space:nowrap; }
+.wza-turn { padding:12px 0 20px; border-bottom:1px solid var(--soft-border); }
+.wza-turn h3 { font-size:13px; }
+.wza-turn time { font-weight:400; }
+.wza-turn p,.wza-turn li { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; margin:6px 0; }
+.wza-turn summary { cursor:pointer; color:var(--muted); font-size:12px; }
+.wza-module .editor-header h2 { overflow-wrap:anywhere; }
+@media(max-width:900px) {
+  .wza-module .wza-grid,.wza-module .wza-grid.wza-chats { grid-template-columns:minmax(120px,1.7fr) minmax(65px,1fr) minmax(55px,.7fr) minmax(80px,1fr); gap:8px; }
+  .wza-module .wza-record { padding-inline:19px; }
+}
+@media(max-width:560px) {
+  .wza-module .wza-grid { grid-template-columns:minmax(100px,1.45fr) minmax(52px,.8fr) minmax(56px,1fr) 44px; }
+  .wza-module .wza-grid.wza-chats { grid-template-columns:minmax(70px,1.4fr) minmax(60px,1fr) 46px minmax(75px,1fr); }
+  .wza-module .wza-record { padding-inline:16px; }
+}
+
+.wza-module .wza-grid.wza-knowledge { grid-template-columns: minmax(160px,2fr) minmax(80px,1fr) repeat(2,minmax(114px,1fr)); } .wza-knowledge .player-identity small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

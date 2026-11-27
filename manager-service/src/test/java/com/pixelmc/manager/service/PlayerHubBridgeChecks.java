@@ -74,7 +74,10 @@ public final class PlayerHubBridgeChecks {
         adminMetadata(controller,url,owner,username,password);
         controller.store.register(INSTANCE,TOKEN);controller.store.register("other-instance",TOKEN);
         String run=UUID.randomUUID().toString(),world=UUID.randomUUID().toString();long now=System.currentTimeMillis();
-        bridge(url,"/bridge/hello",object("runId",run,"worldId",world,"startedAt",now-1000,"info",object()),INSTANCE);
+        JsonObject wenzhou=object("id","wenzhouai","storage",WenzhouAdmin.storageManifest());
+        JsonObject hello=bridge(url,"/bridge/hello",object("runId",run,"worldId",world,"startedAt",now-1000,
+                "info",object("extensions",List.of(wenzhou))),INSTANCE);
+        check(hello.get("platformStorage").getAsInt()==1,"Installed WenZhou manifest must allow the shared game bridge to start");
         String archive=controller.store.createArchive(object("instanceId",INSTANCE,"worldId",world,"name","Hub isolated pack","version","test","startedOn","2026-11-04","active",true),"isolated-check").get("id").getAsString();
         JsonObject profile=object("id",player,"name","HubPlayer","joinCount",1,"totalOnlineMillis",1000,"firstJoinEpochMillis",now,"lastJoinEpochMillis",now);
         JsonObject login=object("id",UUID.randomUUID(),"sessionId",UUID.randomUUID(),"uuid",player,"name","HubPlayer","at",now);

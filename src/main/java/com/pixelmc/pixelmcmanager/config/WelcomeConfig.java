@@ -19,10 +19,12 @@ public final class WelcomeConfig {
 
     public static WelcomeConfig defaults() {
         WelcomeConfig config = new WelcomeConfig();
-        config.firstJoinMessages.add("&7❰ &b&l✦ <gradient:#64D8FF:#F7D774>欢迎来到香草纪元 2.7</gradient> &e&l✦ &7❱");
+        config.firstJoinMessages.add(
+                "&7❰ &b&l✦ <gradient:#64D8FF:#F7D774>欢迎来到香草纪元 2.7</gradient> &e&l✦ &7❱");
         config.firstJoinMessages.add("&7你好，&e{player}&7。这里是 PixelMC 的长期世界。");
         config.firstJoinMessages.add("&7当前在线：&a{online}&7/&e{max}&7。请文明游玩，祝你旅途愉快。");
-        config.returningMessages.add("&7❰ &b&l✦ <gradient:#64D8FF:#F7D774>香草纪元 2.7</gradient> &e&l✦ &7❱");
+        config.returningMessages.add(
+                "&7❰ &b&l✦ <gradient:#64D8FF:#F7D774>香草纪元 2.7</gradient> &e&l✦ &7❱");
         config.returningMessages.add("&7欢迎回来，&e{player}&7。");
         config.returningMessages.add("&7这是你第 &a{join_count} &7次登录，累计游玩 &b{playtime}&7。");
         config.returningMessages.add("&7当前在线：&a{online}&7/&e{max} &8┃ &7延迟：&a{ping}ms");

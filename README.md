@@ -11,10 +11,10 @@
 | 1.20.1 | Forge / Java17 | [mc-1.20.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/mc-1.20.1) | [0.6.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1) |
 | 1.21.1 | NeoForge / Java21 | [neoforge/1.21.1](https://github.com/PixelMC-Projects/pixelmcmanager-forge/tree/neoforge/1.21.1) | [0.6.1 NeoForge](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.1-1.21.1) |
 
-Fabric 1.20.1 / 1.21.1 / 26.1.2 / 26.2 位于独立的 [Fabric 仓库](https://github.com/PixelMC-Projects/pixelmcmanager-fabric)。各加载器共用最新的 [0.6.0.web.2 独立网页服务](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.0.web.2)。
-Fabric builds stay in the separate Fabric repository. All loaders share the latest independent web service linked above.
+Fabric 1.20.1 / 1.21.1 / 26.1.2 / 26.2 位于独立的 [Fabric 仓库](https://github.com/PixelMC-Projects/pixelmcmanager-fabric)。已发布的 [0.6.0.web.2 独立网页服务](https://github.com/PixelMC-Projects/pixelmcmanager-forge/releases/tag/v0.6.0.web.2)。
+Fabric builds stay in the separate Fabric repository. The independent web service linked above is a published version; local candidates are described below.
 
-Forge 1.20.1 的 0.9.2-dev 源码候选提供只读玩法接口，包括 FTB 任务、SDM 商店、食物手册、跨模组事件产物、结构、交易、领地及容器。能力、身份范围和分页字段见[模组接口规范](docs/模组接口规范.md)。
+Forge 1.20.1 的本地 0.9.2-dev 候选向 Hub 扩展提供只读玩法接口，包括 FTB 任务、SDM 商店、食物手册、跨模组事件产物、结构、交易、领地及容器。能力、身份范围和分页字段见[模组接口规范](docs/模组接口规范.md)。
 
 ## 中文
 
@@ -22,7 +22,8 @@ Forge 1.20.1 的 0.9.2-dev 源码候选提供只读玩法接口，包括 FTB 任
 
 ### 功能
 
-- 本地开发候选 0.9.0-dev 增加玩家名片与整合包回忆的真实接口和管理员页面，对接 Hub 0.5.0-dev；保留更新日志与只读排行。社区存储清单为 v3，共 15 张 PlayerHub 表，升级前应保留完整备份。部署和实游验收待完成。
+- 本地开发候选 0.9.0-dev 增加玩家名片与整合包回忆的真实接口和管理员页面，对接 Hub 0.5.5-dev；保留更新日志与只读排行。社区存储清单为 v3，共 15 张 PlayerHub 表，升级前应保留完整备份。部署和实游验收待完成。
+- 本地配套 Service 0.9.0-dev.web.7 复用现有 SSE 快照提供问舟三页的轻量变更标识；运行中会话仍有界核对，外部更新不会覆盖未保存的协议草稿。问舟 0.1.21-dev 和 Hub 0.5.5-dev 均为 Forge 1.20.1 本地候选，尚未部署。
 - 玩家可用 `/killme` 自杀，先以玩家聊天样式显示“自刎归天!!!”，再执行原版死亡流程。
 
 - 实时查看 TPS、MSPT、内存、在线玩家与维度状态。
@@ -46,7 +47,8 @@ Server monitoring, player records, and everyday administration in one place. Use
 
 ### Features
 
-- Local candidate 0.9.0-dev adds durable player profiles, per-archive memories and authenticated community administration for Hub 0.5.0-dev, retaining changelog and read-only rankings. PlayerHub storage manifest v3 contains 15 tables; retain a complete pre-upgrade backup. Deployment and gameplay acceptance remain pending.
+- Local candidate 0.9.0-dev adds durable player profiles, per-archive memories and authenticated community administration for Hub 0.5.5-dev, retaining changelog and read-only rankings. PlayerHub storage manifest v3 contains 15 tables; retain a complete pre-upgrade backup. Deployment and gameplay acceptance remain pending.
+- Local matching Service 0.9.0-dev.web.7 reuses the existing SSE snapshot for lightweight Wenzhou page change markers. Open running conversations retain bounded reconciliation, and external updates do not overwrite unsaved agreement drafts. Wenzhou 0.1.21-dev and Hub 0.5.5-dev are Forge 1.20.1 local candidates; deployment is pending.
 - Players can use `/killme` to announce “自刎归天!!!” in player-chat style, then die through vanilla's self-kill command.
 
 - Monitor live TPS, MSPT, memory, players, and dimensions.

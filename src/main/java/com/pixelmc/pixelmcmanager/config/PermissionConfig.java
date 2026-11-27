@@ -31,7 +31,11 @@ public final class PermissionConfig {
         if (value >= 0 && value <= 4) {
             return value;
         }
-        logger.warn("Invalid PixelMC Manager permission level permissions.{}={}; using default {}.", field, value, fallback);
+        logger.warn(
+                "Invalid PixelMC Manager permission level permissions.{}={}; using default {}.",
+                field,
+                value,
+                fallback);
         return fallback;
     }
 }

@@ -24,12 +24,14 @@ public final class IdleRestartScheduler {
     private ModDirectoryMonitor monitor;
     private Future<RestartBridgeClient.View> polling;
     private Future<?> submitting;
-    private RestartBridgeClient.View view = new RestartBridgeClient.View(false, "", "", "", "", "重启服务尚未初始化。");
+    private RestartBridgeClient.View view =
+            new RestartBridgeClient.View(false, "", "", "", "", "重启服务尚未初始化。");
     private long lastRevision, lastPoll, submittedAt;
     private boolean stopped = true, lastAuto;
     private String requestId = "";
 
-    public IdleRestartScheduler(WelcomeConfigManager config, StopServerScheduler stopScheduler, AuditService audit) {
+    public IdleRestartScheduler(
+            WelcomeConfigManager config, StopServerScheduler stopScheduler, AuditService audit) {
         this.config = config;
         this.stopScheduler = stopScheduler;
         this.audit = audit;
@@ -54,7 +56,9 @@ public final class IdleRestartScheduler {
         requestId = "";
         bridge = new RestartBridgeClient(FMLPaths.GAMEDIR.get().resolve("pixelmcmanager/restart"));
         controlIo = Executors.newSingleThreadExecutor(worker("PixelMCManager-RestartIPC"));
-        monitor = new ModDirectoryMonitor(FMLPaths.MODSDIR.get(), config.getConfig().restart.metadataRecheckSeconds);
+        monitor =
+                new ModDirectoryMonitor(
+                        FMLPaths.MODSDIR.get(), config.getConfig().restart.metadataRecheckSeconds);
         monitor.start();
     }
 
@@ -68,9 +72,13 @@ public final class IdleRestartScheduler {
         return state.cancel() ? "已取消本次空服重启预约。模组变更自动重启开关不受影响。" : "当前没有手动空服重启预约。";
     }
 
-    public void optionChanged() { state.resetFailure(); }
+    public void optionChanged() {
+        state.resetFailure();
+    }
 
-    public void playerJoined() { state.playerJoined(); }
+    public void playerJoined() {
+        state.playerJoined();
+    }
 
     public boolean rejectRestartJoin(ServerPlayer player) {
         if (!state.dispatched()) return false;
@@ -80,21 +88,36 @@ public final class IdleRestartScheduler {
 
     public String status() {
         ModDirectoryMonitor.View files = monitor == null ? null : monitor.view();
-        String mods = files == null || !files.ready() ? "初始化中" : !files.error().isEmpty() ? files.error()
-                : files.changed() ? "与开服时不同或被重写" : "与开服时一致";
-        return "空服重启：" + (state.dispatched() ? "请求已提交" : state.manual() ? "已预约" : "未预约")
-                + "；空服计时 " + state.emptyMillis(System.nanoTime()) / 1000 + "/15秒"
-                + "；模组变更自动重启=" + config.getConfig().restart.restartOnModChange
-                + "；模组列表=" + mods + "；执行方式=" + backendName()
+        String mods =
+                files == null || !files.ready()
+                        ? "初始化中"
+                        : !files.error().isEmpty()
+                                ? files.error()
+                                : files.changed() ? "与开服时不同或被重写" : "与开服时一致";
+        return "空服重启："
+                + (state.dispatched() ? "请求已提交" : state.manual() ? "已预约" : "未预约")
+                + "；空服计时 "
+                + state.emptyMillis(System.nanoTime()) / 1000
+                + "/15秒"
+                + "；模组变更自动重启="
+                + config.getConfig().restart.restartOnModChange
+                + "；模组列表="
+                + mods
+                + "；执行方式="
+                + backendName()
                 + (state.failure().isEmpty() ? "" : "；已暂停：" + state.failure());
     }
 
     public com.google.gson.JsonObject mobileState() {
-        var out=new com.google.gson.JsonObject();var files=monitor==null?null:monitor.view();
-        out.addProperty("manual",state.manual());out.addProperty("dispatched",state.dispatched());
-        out.addProperty("emptySeconds",state.emptyMillis(System.nanoTime())/1000);
-        out.addProperty("modsChanged",files!=null&&files.ready()&&files.changed());
-        out.addProperty("ready",view.ready());out.addProperty("failure",state.failure());return out;
+        var out = new com.google.gson.JsonObject();
+        var files = monitor == null ? null : monitor.view();
+        out.addProperty("manual", state.manual());
+        out.addProperty("dispatched", state.dispatched());
+        out.addProperty("emptySeconds", state.emptyMillis(System.nanoTime()) / 1000);
+        out.addProperty("modsChanged", files != null && files.ready() && files.changed());
+        out.addProperty("ready", view.ready());
+        out.addProperty("failure", state.failure());
+        return out;
     }
 
     private String backendName() {
@@ -106,53 +129,82 @@ public final class IdleRestartScheduler {
         if (stopped) return;
         long nano = System.nanoTime();
         boolean auto = config.getConfig().restart.restartOnModChange;
-        if (auto != lastAuto) { lastAuto = auto; state.resetFailure(); }
+        if (auto != lastAuto) {
+            lastAuto = auto;
+            state.resetFailure();
+        }
         monitor.setRecheckSeconds(config.getConfig().restart.metadataRecheckSeconds);
         ModDirectoryMonitor.View files = monitor.view();
-        if (files.revision() != lastRevision) { state.resetTimer(); lastRevision = files.revision(); }
+        if (files.revision() != lastRevision) {
+            state.resetTimer();
+            lastRevision = files.revision();
+        }
         finishControl(server);
         if (state.dispatched() && nano - submittedAt > 65_000_000_000L) {
             fail(server, "重启请求65秒未完成；不自动重复提交，请检查托管程序或MCSM。 ");
         }
         boolean pending = auto && files.ready() && files.changed() && files.stable();
-        if (state.ready(nano, server.getPlayerCount(), pending, stopScheduler.getCurrentPlanSnapshot().isPresent(), view.ready())) {
+        if (state.ready(
+                nano,
+                server.getPlayerCount(),
+                pending,
+                stopScheduler.getCurrentPlanSnapshot().isPresent(),
+                view.ready())) {
             state.markDispatched();
             submittedAt = nano;
             requestId = UUID.randomUUID().toString();
             String id = requestId;
             String reason = state.manual() ? "manual-empty-15s" : "mods-changed-empty-15s";
             long empty = state.emptyMillis(nano);
-            audit.record(server.createCommandSourceStack(), "restart_submit", reason, "backend=" + view.backend() + ", request=" + id);
-            PixelMCManager.LOGGER.info("Empty server restart requested through {} ({}).", view.backend(), reason);
-            submitting = controlIo.submit(() -> { bridge.request(id, reason, empty, System.currentTimeMillis()); return null; });
+            audit.record(
+                    server.createCommandSourceStack(),
+                    "restart_submit",
+                    reason,
+                    "backend=" + view.backend() + ", request=" + id);
+            PixelMCManager.LOGGER.info(
+                    "Empty server restart requested through {} ({}).", view.backend(), reason);
+            submitting =
+                    controlIo.submit(
+                            () -> {
+                                bridge.request(id, reason, empty, System.currentTimeMillis());
+                                return null;
+                            });
         }
         if (polling == null && nano - lastPoll >= 1_000_000_000L) {
             int players = server.getPlayerCount();
             boolean locked = state.dispatched();
             long empty = state.emptyMillis(nano);
-            polling = controlIo.submit(() -> {
-                long now = System.currentTimeMillis();
-                bridge.heartbeat(players, locked, empty, now);
-                return bridge.read(now);
-            });
+            polling =
+                    controlIo.submit(
+                            () -> {
+                                long now = System.currentTimeMillis();
+                                bridge.heartbeat(players, locked, empty, now);
+                                return bridge.read(now);
+                            });
             lastPoll = nano;
         }
     }
 
     private void finishControl(MinecraftServer server) {
         if (submitting != null && submitting.isDone()) {
-            try { submitting.get(); }
-            catch (Exception e) { fail(server, "无法提交本地重启请求，请检查托管程序；未执行关服。"); }
+            try {
+                submitting.get();
+            } catch (Exception e) {
+                fail(server, "无法提交本地重启请求，请检查托管程序；未执行关服。");
+            }
             submitting = null;
         }
         if (polling == null || !polling.isDone()) return;
         try {
             view = polling.get();
-            if (state.dispatched() && requestId.equals(view.responseId()) && view.responseStatus().equals("error"))
-                fail(server, view.message());
+            if (state.dispatched()
+                    && requestId.equals(view.responseId())
+                    && view.responseStatus().equals("error")) fail(server, view.message());
         } catch (Exception e) {
             view = new RestartBridgeClient.View(false, "", "", "", "", "无法读取本地重启托管状态。");
-        } finally { polling = null; }
+        } finally {
+            polling = null;
+        }
     }
 
     private void fail(MinecraftServer server, String message) {

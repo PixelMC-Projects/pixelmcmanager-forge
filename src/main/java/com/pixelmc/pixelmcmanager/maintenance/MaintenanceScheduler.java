@@ -25,7 +25,8 @@ public final class MaintenanceScheduler {
     private static final String SECOND_WARNING = "&e服务器将在 &c{x} &e秒后进入维护!";
     private static final String KICK_MESSAGE = "&6服务器开始执行维护!\n&b详细信息见QQ群:768322731";
     private static final String REJECT_MESSAGE = "&6服务器正在维护中!\n&b详细信息见QQ群:768322731";
-    private static final DateTimeFormatter SYSTEM_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter SYSTEM_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final WelcomeConfigManager configManager;
     private final TextTemplateParser textParser;
@@ -48,9 +49,16 @@ public final class MaintenanceScheduler {
         plan = new MaintenancePlan(nowMillis, delay);
         sendDueWarnings(server, nowMillis);
 
-        String startTime = SYSTEM_TIME_FORMAT.withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(plan.startTimeMillis()));
+        String startTime =
+                SYSTEM_TIME_FORMAT
+                        .withZone(ZoneId.systemDefault())
+                        .format(Instant.ofEpochMilli(plan.startTimeMillis()));
         if (replaced) {
-            return Result.success("已终止当前存在的服务器维护计划,并成功预定服务器在 " + formatDelay(delay) + " 后进入维护,对应系统时间 " + startTime);
+            return Result.success(
+                    "已终止当前存在的服务器维护计划,并成功预定服务器在 "
+                            + formatDelay(delay)
+                            + " 后进入维护,对应系统时间 "
+                            + startTime);
         }
         return Result.success("已成功预定服务器在 " + formatDelay(delay) + " 后进入维护,对应系统时间 " + startTime);
     }
@@ -124,12 +132,17 @@ public final class MaintenanceScheduler {
         long remainingMillis = Math.max(0L, plan.startTimeMillis() - nowMillis);
         long originalMillis = plan.originalDelay().toMillis();
         int minuteBucket = (int) Math.ceil(remainingMillis / 60_000.0D);
-        if (MINUTE_WARNINGS.contains(minuteBucket) && originalMillis >= minuteBucket * 60_000L && plan.markMinuteWarning(minuteBucket)) {
+        if (MINUTE_WARNINGS.contains(minuteBucket)
+                && originalMillis >= minuteBucket * 60_000L
+                && plan.markMinuteWarning(minuteBucket)) {
             broadcastChat(server, MINUTE_WARNING.replace("{x}", Integer.toString(minuteBucket)));
         }
 
         int secondBucket = (int) Math.ceil(remainingMillis / 1_000.0D);
-        if (secondBucket >= 1 && secondBucket <= 10 && originalMillis >= secondBucket * 1_000L && plan.markSecondWarning(secondBucket)) {
+        if (secondBucket >= 1
+                && secondBucket <= 10
+                && originalMillis >= secondBucket * 1_000L
+                && plan.markSecondWarning(secondBucket)) {
             String message = SECOND_WARNING.replace("{x}", Integer.toString(secondBucket));
             broadcastChat(server, message);
             broadcastSubtitle(server, message);
@@ -192,7 +205,8 @@ public final class MaintenanceScheduler {
         }
     }
 
-    public record StatusSnapshot(State state, long maintenanceStartTimeMillis, long maintenanceStartedAtMillis) {
+    public record StatusSnapshot(
+            State state, long maintenanceStartTimeMillis, long maintenanceStartedAtMillis) {
         public static StatusSnapshot none() {
             return new StatusSnapshot(State.NONE, 0L, 0L);
         }

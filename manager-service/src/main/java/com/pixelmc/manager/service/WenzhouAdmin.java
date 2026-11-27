@@ -142,12 +142,12 @@ final class WenzhouAdmin {
     // Read only metadata here: the platform streams snapshots even when another page is visible.
     void addRevisions(JsonObject snapshot, UUID viewer, String boot, long players, long config) {
         if (!owner.equals(viewer)) return;
-        String policy = modified("service.json");
+        String service = modified("service.json");
         String history = modified("conversations");
-        snapshot.addProperty("wenzhouHistoryRevision", boot + ":" + history + ":" + policy);
+        snapshot.addProperty("wenzhouHistoryRevision", boot + ":" + history + ":" + service);
         snapshot.addProperty("wenzhouKnowledgeRevision", boot + ":" + modified("memory"));
         snapshot.addProperty("wenzhouPlayersRevision", players);
-        snapshot.addProperty("wenzhouServiceRevision", boot + ":" + config + ":" + policy + ":" + modified("credential.json") + ":" + modified("chatgpt-revision"));
+        snapshot.addProperty("wenzhouServiceRevision", boot + ":" + config + ":" + service + ":" + modified("credential.json") + ":" + modified("chatgpt-revision"));
     }
 
     private String modified(String name) {

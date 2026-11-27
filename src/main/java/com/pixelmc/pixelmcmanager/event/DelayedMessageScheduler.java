@@ -24,7 +24,11 @@ public final class DelayedMessageScheduler {
     private final List<ScheduledMessage> queue = new LinkedList<>();
     private long serverTicks = 0L;
 
-    public DelayedMessageScheduler(WelcomeConfigManager configManager, PlayerStatsStore statsStore, PlaceholderResolver placeholderResolver, TextTemplateParser textParser) {
+    public DelayedMessageScheduler(
+            WelcomeConfigManager configManager,
+            PlayerStatsStore statsStore,
+            PlaceholderResolver placeholderResolver,
+            TextTemplateParser textParser) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.placeholderResolver = placeholderResolver;
@@ -34,7 +38,12 @@ public final class DelayedMessageScheduler {
     public void schedule(ServerPlayer player, boolean firstJoin, long lastJoinDateEpochMillis) {
         WelcomeConfig config = configManager.getConfig();
         queue.removeIf(entry -> entry.playerId().equals(player.getUUID()));
-        queue.add(new ScheduledMessage(player.getUUID(), serverTicks + config.delayTicks, firstJoin, lastJoinDateEpochMillis));
+        queue.add(
+                new ScheduledMessage(
+                        player.getUUID(),
+                        serverTicks + config.delayTicks,
+                        firstJoin,
+                        lastJoinDateEpochMillis));
     }
 
     public void cancel(UUID playerId) {
@@ -70,13 +79,14 @@ public final class DelayedMessageScheduler {
         }
 
         PlayerStats stats = statsStore.getStats(player.getUUID());
-        PlaceholderContext context = new PlaceholderContext(player, config, stats, lastJoinDateEpochMillis);
+        PlaceholderContext context =
+                new PlaceholderContext(player, config, stats, lastJoinDateEpochMillis);
         for (String template : templates) {
             String resolved = placeholderResolver.resolve(template, context);
             player.sendSystemMessage(textParser.parse(resolved, config));
         }
     }
 
-    private record ScheduledMessage(UUID playerId, long dueTick, boolean firstJoin, long lastJoinDateEpochMillis) {
-    }
+    private record ScheduledMessage(
+            UUID playerId, long dueTick, boolean firstJoin, long lastJoinDateEpochMillis) {}
 }

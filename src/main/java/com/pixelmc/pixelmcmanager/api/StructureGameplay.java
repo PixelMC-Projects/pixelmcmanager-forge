@@ -1,10 +1,10 @@
 package com.pixelmc.pixelmcmanager.api;
 
+import static com.pixelmc.pixelmcmanager.api.GameplayData.*;
+
 import com.google.gson.*;
 import com.mojang.serialization.JsonOps;
-import java.io.*;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+
 import net.minecraft.Util;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
@@ -16,7 +16,10 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.level.storage.loot.*;
-import static com.pixelmc.pixelmcmanager.api.GameplayData.*;
+
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @net.minecraftforge.fml.common.Mod.EventBusSubscriber(
         modid = "pixelmcmanager",
@@ -48,11 +51,16 @@ final class StructureGameplay {
     static CompletableFuture<JsonObject> read(
             MinecraftServer server, String kind, String target, int page) {
         if (kind.equals("structure_generation")) {
-            return CompletableFuture.completedFuture(generation(server,target,page));
+            return CompletableFuture.completedFuture(generation(server, target, page));
         }
-        if (kind.equals("chest_sources") && !net.minecraft.core.registries.BuiltInRegistries.ITEM
-                .containsKey(ResourceLocation.tryParse(target))) {
-            return CompletableFuture.completedFuture(result("not_registered", "物品未注册。"));
+        if (kind.equals("chest_sources")
+                && !net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(
+                        ResourceLocation.tryParse(target))) {
+            return CompletableFuture.completedFuture(
+                    result(
+                            "not_registered",
+                            "物品未注册。chest_sources 仅接受物品 ID；查指定结构内的箱子请改用 structure_chests，查战利品表定义请改用"
+                                + " loot_table。"));
         }
         var structureIndex = cached(server);
         if (structureIndex.isCompletedExceptionally()) {
@@ -89,97 +97,160 @@ final class StructureGameplay {
                                     item.builtInRegistryHolder()
                                             .tags()
                                             .forEach(t -> tags.add(t.location().toString())));
-        return structureIndex
-                .thenApplyAsync(
-                        idx -> {
-                            var rows = new ArrayList<JsonObject>();
-                            int[] skipped = {0};
-                            var groups = new LinkedHashMap<List<String>, JsonObject>();
-                            var memo = new HashMap<String, Boolean>();
-                            var json = Deserializers.createLootTableSerializer().create();
-                            for (var route : idx.routes) {
-                                if (!possible.contains(route.structure)
-                                        || kind.equals("structure_chests")
-                                                && !target.equals(route.structure)) continue;
-                                if (kind.equals("chest_sources")
-                                        && !contains(
-                                                route.table,
-                                                target,
-                                                tags,
-                                                active,
-                                                json,
-                                                memo,
-                                                new HashSet<>(),
-                                                skipped)) continue;
-                                var r = row("structure", route.structure);
-                                if (!route.template.isEmpty())
-                                    r.addProperty("template", route.template);
-                                r.addProperty("loot_table", route.table);
-                                r.addProperty("container", route.container);
-                                // Return one row per source, even if the same chest occurs in
-                                // dozens of rooms.
-                                if (kind.equals("chest_sources")) {
-                                    var key =
-                                            List.of(route.structure, route.table, route.container);
-                                    var first = groups.putIfAbsent(key, r);
-                                    if (first != null) {
-                                        first.addProperty(
-                                                "variants", first.get("variants").getAsInt() + 1);
-                                        continue;
-                                    }
-                                    r.addProperty("variants", 1);
-                                }
-                                rows.add(r);
+        return structureIndex.thenApplyAsync(
+                idx -> {
+                    var rows = new ArrayList<JsonObject>();
+                    int[] skipped = {0};
+                    var groups = new LinkedHashMap<List<String>, JsonObject>();
+                    var memo = new HashMap<String, Boolean>();
+                    var json = Deserializers.createLootTableSerializer().create();
+                    for (var route : idx.routes) {
+                        if (!possible.contains(route.structure)
+                                || kind.equals("structure_chests")
+                                        && !target.equals(route.structure)) continue;
+                        if (kind.equals("chest_sources")
+                                && !contains(
+                                        route.table,
+                                        target,
+                                        tags,
+                                        active,
+                                        json,
+                                        memo,
+                                        new HashSet<>(),
+                                        skipped)) continue;
+                        var r = row("structure", route.structure);
+                        if (!route.template.isEmpty()) r.addProperty("template", route.template);
+                        r.addProperty("loot_table", route.table);
+                        r.addProperty("container", route.container);
+                        // Return one row per source, even if the same chest occurs in
+                        // dozens of rooms.
+                        if (kind.equals("chest_sources")) {
+                            var key = List.of(route.structure, route.table, route.container);
+                            var first = groups.putIfAbsent(key, r);
+                            if (first != null) {
+                                first.addProperty("variants", first.get("variants").getAsInt() + 1);
+                                continue;
                             }
-                            var out =
-                                    page(
-                                            rows,
-                                            page,
-                                            "当前维度可生成结构中的容器候选。房间、处理器与掉落条件会影响实际结果；未识别的结构代码或动态掉落可能另有来源。用 loot_table 查池、条件和数量。");
-                            out.addProperty("unreadable", idx.unreadable + skipped[0]);
-                            out.addProperty("structures_without_template_root", idx.unsupported);
-                            return out;
-                        },
-                        Util.ioPool());
+                            r.addProperty("variants", 1);
+                        }
+                        rows.add(r);
+                    }
+                    var out =
+                            page(
+                                    rows,
+                                    page,
+                                    "当前维度可生成结构中的容器候选。房间、处理器与掉落条件会影响实际结果；未识别的结构代码或动态掉落可能另有来源。用"
+                                        + " loot_table 查池、条件和数量。");
+                    out.addProperty("unreadable", idx.unreadable + skipped[0]);
+                    out.addProperty("structures_without_template_root", idx.unsupported);
+                    return out;
+                },
+                Util.ioPool());
     }
 
-    private static JsonObject generation(MinecraftServer server,String target,int page) {
-        var ops=RegistryOps.create(JsonOps.INSTANCE,server.registryAccess());
-        var rows=new GameplayData.PageWindow(page);
-        for(var level:server.getAllLevels()) {
-            var source=level.getChunkSource();
-            var availableBiomes=source.getGenerator().getBiomeSource().possibleBiomes();
-            for(var holder:source.getGeneratorState().possibleStructureSets()) {
-                var set=holder.value();
-                int totalWeight=set.structures().stream().mapToInt(entry->entry.weight()).sum();
-                for(var entry:set.structures()) {
-                    var structure=entry.structure().value();
-                    var key=entry.structure().unwrapKey();
-                    if(key.isEmpty())continue;
-                    String name=key.get().location().toString();
-                    if(!target.equals("*")&&!name.contains(target))continue;
-                    var biomes=structure.biomes().stream().filter(availableBiomes::contains)
-                            .flatMap(b->b.unwrapKey().stream()).map(k->k.location().toString()).sorted().toList();
-                    for(int i=0;i<biomes.size();i+=12) {
-                        if(!rows.includeNext())continue;
-                        var data=row("structure",name);
-                        data.addProperty("dimension",level.dimension().location().toString());
-                        holder.unwrapKey().ifPresent(k->data.addProperty("structure_set",k.location().toString()));
-                        data.addProperty("world_generation_enabled",server.getWorldData().worldGenOptions().generateStructures());
-                        data.addProperty("weight",entry.weight());
-                        data.addProperty("pool_weight",totalWeight);
-                        data.addProperty("generation_step",structure.step().getName());
-                        var group=new JsonArray();
-                        biomes.subList(i,Math.min(i+12,biomes.size())).forEach(group::add);
-                        data.add("biomes",group);
-                        StructurePlacement.CODEC.encodeStart(ops,set.placement()).result().ifPresent(v->data.add("placement",v));
-                        Structure.DIRECT_CODEC.encodeStart(ops,structure).result().filter(JsonElement::isJsonObject).ifPresent(v->{
-                            var definition=v.getAsJsonObject();
-                            for(String field:List.of("type","start_height","project_start_to_heightmap","terrain_adaptation",
-                                    "start_pool","max_distance_from_center","start_jigsaw_name","biome_radius","size")) {
-                                if(definition.has(field))data.add(field,definition.get(field));
-                            }
-                        });
+    private static JsonObject generation(MinecraftServer server, String target, int page) {
+        var ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
+        var rows = new GameplayData.PageWindow(page);
+        for (var level : server.getAllLevels()) {
+            var source = level.getChunkSource();
+            var availableBiomes = source.getGenerator().getBiomeSource().possibleBiomes();
+            for (var holder : source.getGeneratorState().possibleStructureSets()) {
+                var set = holder.value();
+                int totalWeight = set.structures().stream().mapToInt(entry -> entry.weight()).sum();
+                for (var entry : set.structures()) {
+                    var structure = entry.structure().value();
+                    var key = entry.structure().unwrapKey();
+                    if (key.isEmpty()) continue;
+                    String name = key.get().location().toString();
+                    if (!target.equals("*") && !name.contains(target)) continue;
+                    var biomes =
+                            structure.biomes().stream()
+                                    .filter(availableBiomes::contains)
+                                    .flatMap(b -> b.unwrapKey().stream())
+                                    .map(k -> k.location().toString())
+                                    .sorted()
+                                    .toList();
+                    for (int i = 0; i < biomes.size(); i += 12) {
+                        if (!rows.includeNext()) continue;
+                        var data = row("structure", name);
+                        data.addProperty("dimension", level.dimension().location().toString());
+                        holder.unwrapKey()
+                                .ifPresent(
+                                        k ->
+                                                data.addProperty(
+                                                        "structure_set", k.location().toString()));
+                        data.addProperty(
+                                "world_generation_enabled",
+                                server.getWorldData().worldGenOptions().generateStructures());
+                        data.addProperty("weight", entry.weight());
+                        data.addProperty("pool_weight", totalWeight);
+                        data.addProperty("generation_step", structure.step().getName());
+                        var group = new JsonArray();
+                        biomes.subList(i, Math.min(i + 12, biomes.size())).forEach(group::add);
+                        data.add("biomes", group);
+                        StructurePlacement.CODEC
+                                .encodeStart(ops, set.placement())
+                                .result()
+                                .ifPresent(
+                                        v -> {
+                                            data.add("placement", v);
+                                            if (v.isJsonObject()) {
+                                                var p = v.getAsJsonObject();
+                                                boolean hasChunkUnit = false;
+                                                if (p.has("spacing")
+                                                        && p.get("spacing").isJsonPrimitive()
+                                                        && p.get("spacing")
+                                                                .getAsJsonPrimitive()
+                                                                .isNumber()) {
+                                                    int spacing = p.get("spacing").getAsInt();
+                                                    data.addProperty("spacing_chunks", spacing);
+                                                    data.addProperty(
+                                                            "spacing_blocks_approx", spacing * 16);
+                                                    hasChunkUnit = true;
+                                                }
+                                                if (p.has("separation")
+                                                        && p.get("separation").isJsonPrimitive()
+                                                        && p.get("separation")
+                                                                .getAsJsonPrimitive()
+                                                                .isNumber()) {
+                                                    int separation = p.get("separation").getAsInt();
+                                                    data.addProperty(
+                                                            "separation_chunks", separation);
+                                                    data.addProperty(
+                                                            "separation_blocks_approx",
+                                                            separation * 16);
+                                                    hasChunkUnit = true;
+                                                }
+                                                if (hasChunkUnit) {
+                                                    data.addProperty(
+                                                            "unit_note",
+                                                            "spacing 和 separation 单位均为区块（1 区块 = 16"
+                                                                + " 格），不是方块格。");
+                                                }
+                                            }
+                                        });
+                        Structure.DIRECT_CODEC
+                                .encodeStart(ops, structure)
+                                .result()
+                                .filter(JsonElement::isJsonObject)
+                                .ifPresent(
+                                        v -> {
+                                            var definition = v.getAsJsonObject();
+                                            for (String field :
+                                                    List.of(
+                                                            "type",
+                                                            "start_height",
+                                                            "project_start_to_heightmap",
+                                                            "terrain_adaptation",
+                                                            "start_pool",
+                                                            "max_distance_from_center",
+                                                            "start_jigsaw_name",
+                                                            "biome_radius",
+                                                            "size")) {
+                                                if (definition.has(field))
+                                                    data.add(field, definition.get(field));
+                                            }
+                                        });
                         rows.entries.add(data);
                     }
                 }

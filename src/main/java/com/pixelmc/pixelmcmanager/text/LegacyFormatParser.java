@@ -5,8 +5,7 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 
 public final class LegacyFormatParser {
-    private LegacyFormatParser() {
-    }
+    private LegacyFormatParser() {}
 
     public static Style applyLegacyCode(Style style, char code) {
         ChatFormatting formatting = ChatFormatting.getByCode(code);

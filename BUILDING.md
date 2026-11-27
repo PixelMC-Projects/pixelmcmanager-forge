@@ -7,19 +7,22 @@ Use JDK 17 (`JAVA_HOME`). To build the server mod:
 ./gradlew build
 ```
 
-常驻网页后台还需要 Node.js 22 / npm，并复用 MemorialTitles 和 DailyFortunes 仓库中的共享业务代码。请将三个仓库放在同一目录：
-The independent web service also needs Node.js 22 / npm and shared code from MemorialTitles and DailyFortunes. Clone all three repositories side by side:
+常驻网页后台还需要 Node.js 22 / npm、MemorialTitles 与 DailyFortunes 的共享业务代码，以及 WenZhou-Agent 的管理页源码。请将配套仓库放在同一目录。
+The independent web service uses Node.js 22 / npm, shared code from MemorialTitles and DailyFortunes, and the administration pages from WenZhou-Agent.
 
 ```text
 projects/
   pixelmcmanager-forge/
   MemorialTitles/
   DailyFortunes/
+  WenZhou-Agent/
 ```
 
 ```sh
 ./gradlew managerServiceJar
 ```
+
+Gradle 使用 `-PwenzhouAgentDir=/path/to/WenZhou-Agent` 指定其它源码布局。单独运行前端构建时，可用 `WENZHOU_ADMIN_DIR` 指向该工程的 `admin-web` 目录。问舟管理页随 Manager Service 编译，玩家客户端仍从游戏服侧使用问舟扩展。
 
 其他布局可用 `-PmemorialTitlesDir=/path/to/MemorialTitles -PdailyFortunesDir=/path/to/DailyFortunes`。服务只编译 DailyFortunes 的纯 Java17 `service` 包和默认签文资源，不包含其 Forge/客户端代码。Gradle 自动获取 JDBC 和锁定的前端依赖；不需要复制数据库、运行配置、`libs/` 或本地缓存。
 For a different layout set `-PmemorialTitlesDir=/path/to/MemorialTitles -PdailyFortunesDir=/path/to/DailyFortunes`. Only the pure Java17 DailyFortunes service package and default definitions enter the web service; its Forge/client code is excluded. Gradle resolves JDBC and locked frontend packages; no database, runtime configuration, `libs/` or local cache needs copying.
@@ -36,20 +39,3 @@ Manager Service 0.6.0 需要 MemorialTitles 0.5.0-dev 与 DailyFortunes 0.2.0 �
 Service-only hotfix 0.6.0.web.1 uses DailyFortunes 0.2.1 shared source. Build with `./gradlew managerServiceJar -PmanagerServiceVersion=0.6.0.web.1`. The game mod and bridge protocol stay at 0.6.0; both Fabric versions reuse this same service package without a game-code port.
 
 仅网页修复版 0.6.0.web.1 使用 DailyFortunes 0.2.1 的共享源码。构建命令如上；游戏 Manager 和桥接协议仍为 0.6.0。两个 Fabric 版本共用此网页包，不需要改动游戏代码。
-
-
-Manager 的网页构建复用 PixelMC-Hub 的部分源码。默认从相邻项目目录读取；如源码不在默认位置，构建前将环境变量 `PIXELMC_HUB_SOURCE_ROOT` 指向已检出的 Hub 项目根目录，并使用发行来源清单指定的提交。
-
-Manager 服务使用 `build:manager` 编译网页；原有 `build` 脚本仍用于 Sites 打包。
-
-### 构建问舟配套独立服务
-
-从发行附件中的 `SOURCE.json` 核对 Manager、MemorialTitles、DailyFortunes、PixelMC-Hub 与 WenZhou-Agent 的提交。使用 Java 17 和项目锁定的 Node 依赖。将 `PIXELMC_HUB_SOURCE_ROOT` 指向对应 Hub 工作区，执行：
-
-```sh
-./gradlew managerServiceJar -PmanagerServiceVersion=0.9.0-dev.web.8 \
-  -PwenzhouAgentDir=../WenZhou-Agent -PmemorialTitlesDir=../MemorialTitles \
-  -PdailyFortunesDir=../DailyFortunes
-```
-
-服务输出为 `build/manager-service/pixelmc-manager-service-0.9.0-dev.web.8.jar`。首次配置使用统一 MariaDB 存储。将 `wenzhou-admin.properties` 放在 Manager 数据目录，填写 `sourceDirectory` 为问舟保存数据的绝对目录，`ownerPlayerUuid` 为已具有 Manager 管理权限的服主 UUID。问舟运行中的会话与在线设置还需按问舟管理文档配置 HTTPS 同源路由。

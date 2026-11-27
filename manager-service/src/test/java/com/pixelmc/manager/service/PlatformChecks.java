@@ -53,6 +53,20 @@ public final class PlatformChecks {
         JsonObject third=obj("{version:1,name:'Independent extension',label:'测试模块',scope:'global',fields:[{id:'enabled',type:'boolean',scope:'global',default:false,maxBytes:32},{id:'visits',type:'integer',scope:'archive',default:0,maxBytes:32}],tables:[]}");controller.platform.register("independent",third);controller.platform.register("independent",third);
         var hook=controller.platform.hook("independent",Set::of);JsonObject read=obj("{op:'storage.get',player:'"+player+"',field:'enabled'}");check(!hook.apply(read).get("value").getAsBoolean()&&hook.apply(read).get("revision").getAsLong()==0,"third module typed default without stored rows");
         JsonObject write=obj("{op:'storage.set',player:'"+player+"',field:'enabled',value:true,expectedRevision:0}");check(hook.apply(write).get("revision").getAsLong()==1,"third module optimistic write");denied(()->hook.apply(write),"stale revision refused");JsonObject foreign=read.deepCopy();foreign.addProperty("namespace","memorialtitles");denied(()->hook.apply(foreign),"namespace ownership enforced");
+        JsonObject batch = obj("{op:'storage.getMany',players:[],fields:['enabled']}");
+        batch.getAsJsonArray("players").add(player.toString());
+        batch.getAsJsonArray("players").add(UUID.randomUUID().toString());
+        JsonObject found = hook.apply(batch).getAsJsonObject("players");
+        check(found.size() == 1 && found.getAsJsonObject(player.toString()).getAsJsonObject("enabled").equals(
+                obj("{value:true,revision:1}")), "batch read preserves revision and omits absent players");
+        JsonObject other = batch.deepCopy();
+        other.addProperty("namespace", "memorialtitles");
+        denied(() -> hook.apply(other), "batch read is namespace isolated");
+        batch.getAsJsonArray("fields").add("visits");
+        denied(() -> hook.apply(batch), "batch read rejects archive fields");
+        batch.getAsJsonArray("fields").remove(1);
+        for (int i = 0; i < 31; i++) batch.getAsJsonArray("players").add(UUID.randomUUID().toString());
+        denied(() -> hook.apply(batch), "batch read caps requested players");
         JsonObject bad=write.deepCopy();bad.addProperty("expectedRevision",1);bad.addProperty("value","true");denied(()->hook.apply(bad),"boolean string rejected");bad.addProperty("field","unregistered");denied(()->hook.apply(bad),"unregistered field rejected");
         JsonObject scoped=obj("{op:'storage.set',player:'"+player+"',field:'visits',archiveId:'"+archive+"',value:4,expectedRevision:0}");check(hook.apply(scoped).get("value").getAsInt()==4,"archive scoped field supported");
         try(Connection c=controller.store.open()){ManagerStore.update(c,"UPDATE pm_archives SET status='archived' WHERE id=?",archive);}scoped.addProperty("expectedRevision",1);denied(()->hook.apply(scoped),"historical mutations refused");

@@ -21,6 +21,10 @@ public final class BridgeRuntimeLifecycleTest {
     private static Field field(String name)throws Exception{Field value=BridgeAgent.class.getDeclaredField(name);value.setAccessible(true);return value;}
     private static boolean fieldStopping(BridgeAgent bridge){try{return field("stopping").getBoolean(bridge);}catch(Exception failure){throw new AssertionError(failure);}}
     public static void main(String[] args)throws Exception{
+        JsonObject community=com.google.gson.JsonParser.parseString("{\"extension\":\"playerhub\",\"op\":\"community\",\"data\":{\"args\":[\"player\",\"saveCollections\",{\"selection\":{\"titleEventId\":null,\"fortuneEventId\":null}}]}}").getAsJsonObject();
+        JsonObject encoded=com.google.gson.JsonParser.parseString(BridgeAgent.requestBody("rpc",community)).getAsJsonObject();
+        check(encoded.getAsJsonObject("data").getAsJsonArray("args").get(2).getAsJsonObject().getAsJsonObject("selection").get("titleEventId").isJsonNull(),"Community bridge preserves explicit null selections");
+        check(BridgeAgent.requestBody("hello",community).equals(ManagerBridgeApi.JSON.toJson(community)),"Existing bridge request encoding remains compatible");
         BridgeAgent bridge=new BridgeAgent(null,null,null,null,null);
         try{
             bridge.prepareRuntime();

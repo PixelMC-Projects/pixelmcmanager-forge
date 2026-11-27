@@ -142,13 +142,12 @@ def fortunesRoot = providers.gradleProperty('dailyFortunesDir').map { file(it) }
         file('../DailyFortunes').exists() ? file('../DailyFortunes') : file('../../../DailyFortunes'))
 def wenzhouRoot = providers.gradleProperty('wenzhouAgentDir').map { file(it) }.getOrElse(
         file('../WenZhou-Agent').exists() ? file('../WenZhou-Agent') : file('../../../WenZhou-Agent'))
-def wenzhouAdmin = new File(wenzhouRoot, 'admin-web')
 configurations { managerJdbc }
 dependencies { managerJdbc('org.mariadb.jdbc:mariadb-java-client:3.5.6') { transitive = false } }
 sourceSets {
     managerService {
-        java.srcDirs = ['manager-service/src/main/java', titlesSource, new File(fortunesRoot, 'src/main/java'),
-                        new File(wenzhouRoot, 'src/main/java'), new File(wenzhouRoot, 'manager-service/src/main/java')]
+        java.srcDirs = ['manager-service/src/main/java', titlesSource, new File(fortunesRoot, 'src/main/java'), new File(wenzhouRoot, 'src/main/java'),
+                        new File(wenzhouRoot, 'manager-service/src/main/java')]
         java.include 'com/pixelmc/manager/service/**', 'cn/pixelmc/memorialtitles/domain/**',
                 'cn/pixelmc/memorialtitles/persistence/**', 'cn/pixelmc/memorialtitles/service/**',
                 'cn/pixelmc/memorialtitles/web/**', 'cn/pixelmc/memorialtitles/forge/ServerFiles.java', 'cn/pixelmc/dailyfortunes/service/**'
@@ -158,7 +157,6 @@ sourceSets {
                 'com/pixelmc/wenzhouai/service/WzSettings.java',
                 'com/pixelmc/wenzhouai/service/WzHistory.java',
                 'com/pixelmc/wenzhouai/service/WzThreadUsage.java',
-                'com/pixelmc/wenzhouai/service/WzProtocolText.java',
                 'com/pixelmc/wenzhouai/service/WzData.java',
                 'com/pixelmc/wenzhouai/service/WzCredential.java'
         compileClasspath = files(restartGson) + configurations.managerJdbc
@@ -178,10 +176,11 @@ tasks.register('installManagerWeb', Exec) {
     outputs.file('web-console/node_modules/.package-lock.json')
 }
 
+def wenzhouAdmin = new File(wenzhouRoot, 'admin-web')
 tasks.register('buildManagerWeb', Exec) {
     dependsOn 'installManagerWeb'
     workingDir file('web-console')
-    commandLine(System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm', 'run', 'build:manager')
+    commandLine(System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm', 'run', 'build')
     environment 'WENZHOU_ADMIN_DIR', wenzhouAdmin.absolutePath
     inputs.dir(new File(wenzhouAdmin, 'src'))
     inputs.files(fileTree('web-console/src'),fileTree('web-console/public'),'web-console/vite.config.mjs','web-console/package-lock.json')
@@ -193,7 +192,6 @@ tasks.named('processManagerServiceResources').configure {
         include 'LICENSE', 'NOTICE.md'
         into 'licenses/wenzhou-admin'
     }
-    from(new File(wenzhouRoot, 'src/main/resources')) { include 'assets/wenzhouai/default-policy.json' }
     from('web-console/dist/client') { into 'web' }
     from(new File(titlesRoot, 'web-console/src/titlePresentationPresets.json'))
     from(new File(fortunesRoot, 'src/main/resources/defaults')) { into 'defaults' }
@@ -265,6 +263,18 @@ tasks.register("playerHubBridgeTest",JavaExec) { dependsOn "managerChecksClasses
 
 tasks.register("bridgeRuntimeLifecycleTest", JavaExec) { dependsOn restartChecksClasses; classpath=sourceSets.restartChecks.runtimeClasspath + sourceSets.main.compileClasspath; mainClass="com.pixelmc.pixelmcmanager.bridge.BridgeRuntimeLifecycleTest" }
 tasks.named("check").configure { dependsOn "bridgeRuntimeLifecycleTest" }
+
+tasks.register("playerHubUpdatesLogicTest",JavaExec){dependsOn restartChecksClasses;classpath=sourceSets.restartChecks.runtimeClasspath + sourceSets.main.compileClasspath;mainClass="com.pixelmc.pixelmcmanager.api.PlayerHubUpdatesLogicTest"}
+tasks.named("check").configure{dependsOn "playerHubUpdatesLogicTest"}
+
+// Disposable-loopback HTTP/SQL suite; must be launched by the owned DB launcher.
+tasks.register("playerHubUpdatesServiceTest",JavaExec) { dependsOn "managerChecksClasses"; classpath=sourceSets.managerChecks.runtimeClasspath; mainClass="com.pixelmc.manager.service.PlayerHubUpdatesChecks" }
+
+// Launch optional visual fixture outside Gradle, so it does not hold a build lease.
+tasks.register("writePlayerHubUpdatesTestClasspath") { dependsOn "managerChecksClasses"; doLast { layout.buildDirectory.file("playerhub-updates-test-classpath.txt").get().asFile.text=sourceSets.managerChecks.runtimeClasspath.asPath } }
+
+tasks.register("playerHubCommunityLogicTest",JavaExec){dependsOn restartChecksClasses;classpath=sourceSets.restartChecks.runtimeClasspath + sourceSets.main.compileClasspath;mainClass="com.pixelmc.pixelmcmanager.api.PlayerHubCommunityLogicTest"}
+tasks.named("check").configure{dependsOn "playerHubCommunityLogicTest"}
 
 tasks.register("modpackGatewayTest", JavaExec) {
     dependsOn "managerChecksClasses"

@@ -24,7 +24,8 @@ public final class StopServerScheduler {
     private static final String SECOND_WARNING = "&e服务器将在 &c{x} &e秒后停机维护!";
     private static final String KICK_MESSAGE = "&6服务器开始执行停机维护!\n&b详细信息见QQ群:768322731";
     private static final String REJECT_MESSAGE = "&6服务器即将停机维护!\n&b详细信息见QQ群:768322731";
-    private static final DateTimeFormatter SYSTEM_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter SYSTEM_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final WelcomeConfigManager configManager;
     private final TextTemplateParser textParser;
@@ -43,11 +44,16 @@ public final class StopServerScheduler {
         stopCommandIssued = false;
         sendDueWarnings(server, nowMillis);
 
-        String kickTime = SYSTEM_TIME_FORMAT.withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(plan.kickTimeMillis()));
+        String kickTime =
+                SYSTEM_TIME_FORMAT
+                        .withZone(ZoneId.systemDefault())
+                        .format(Instant.ofEpochMilli(plan.kickTimeMillis()));
         if (replaced) {
-            return ScheduleResult.success("已终止当前存在的服务器终止进程,并成功预定服务器在 " + formatDelay(delay) + " 后停机,对应系统时间 " + kickTime);
+            return ScheduleResult.success(
+                    "已终止当前存在的服务器终止进程,并成功预定服务器在 " + formatDelay(delay) + " 后停机,对应系统时间 " + kickTime);
         }
-        return ScheduleResult.success("已成功预定服务器在 " + formatDelay(delay) + " 后停机,对应系统时间 " + kickTime);
+        return ScheduleResult.success(
+                "已成功预定服务器在 " + formatDelay(delay) + " 后停机,对应系统时间 " + kickTime);
     }
 
     public synchronized ScheduleResult cancel() {
@@ -63,7 +69,9 @@ public final class StopServerScheduler {
         if (plan == null) {
             return Optional.empty();
         }
-        return Optional.of(new PlanSnapshot(plan.kickTimeMillis(), plan.stopTimeMillis(), plan.maintenanceActive()));
+        return Optional.of(
+                new PlanSnapshot(
+                        plan.kickTimeMillis(), plan.stopTimeMillis(), plan.maintenanceActive()));
     }
 
     public synchronized boolean rejectMaintenanceJoin(ServerPlayer player) {
@@ -104,12 +112,17 @@ public final class StopServerScheduler {
         long remainingMillis = Math.max(0L, plan.kickTimeMillis() - nowMillis);
         long originalMillis = plan.originalDelay().toMillis();
         int minuteBucket = (int) Math.ceil(remainingMillis / 60_000.0D);
-        if (MINUTE_WARNINGS.contains(minuteBucket) && originalMillis >= minuteBucket * 60_000L && plan.markMinuteWarning(minuteBucket)) {
+        if (MINUTE_WARNINGS.contains(minuteBucket)
+                && originalMillis >= minuteBucket * 60_000L
+                && plan.markMinuteWarning(minuteBucket)) {
             broadcastChat(server, MINUTE_WARNING.replace("{x}", Integer.toString(minuteBucket)));
         }
 
         int secondBucket = (int) Math.ceil(remainingMillis / 1_000.0D);
-        if (secondBucket >= 1 && secondBucket <= 10 && originalMillis >= secondBucket * 1_000L && plan.markSecondWarning(secondBucket)) {
+        if (secondBucket >= 1
+                && secondBucket <= 10
+                && originalMillis >= secondBucket * 1_000L
+                && plan.markSecondWarning(secondBucket)) {
             String message = SECOND_WARNING.replace("{x}", Integer.toString(secondBucket));
             broadcastChat(server, message);
             broadcastSubtitle(server, message);
@@ -173,6 +186,6 @@ public final class StopServerScheduler {
         }
     }
 
-    public record PlanSnapshot(long kickTimeMillis, long stopTimeMillis, boolean maintenanceActive) {
-    }
+    public record PlanSnapshot(
+            long kickTimeMillis, long stopTimeMillis, boolean maintenanceActive) {}
 }

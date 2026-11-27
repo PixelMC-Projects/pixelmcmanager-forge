@@ -29,21 +29,57 @@ public final class PixelMCManager {
         AuditService auditService = new AuditService(LOGGER);
         PlaceholderResolver placeholderResolver = new PlaceholderResolver();
         TextTemplateParser textParser = new TextTemplateParser(LOGGER);
-        DelayedMessageScheduler scheduler = new DelayedMessageScheduler(configManager, statsStore, placeholderResolver, textParser);
-        AnnouncementScheduler announcementScheduler = new AnnouncementScheduler(configManager, placeholderResolver, textParser);
-        StopServerScheduler stopServerScheduler = new StopServerScheduler(configManager, textParser);
-        MaintenanceScheduler maintenanceScheduler = new MaintenanceScheduler(configManager, textParser);
-        IdleRestartScheduler restartScheduler = new IdleRestartScheduler(configManager, stopServerScheduler, auditService);
+        DelayedMessageScheduler scheduler =
+                new DelayedMessageScheduler(
+                        configManager, statsStore, placeholderResolver, textParser);
+        AnnouncementScheduler announcementScheduler =
+                new AnnouncementScheduler(configManager, placeholderResolver, textParser);
+        StopServerScheduler stopServerScheduler =
+                new StopServerScheduler(configManager, textParser);
+        MaintenanceScheduler maintenanceScheduler =
+                new MaintenanceScheduler(configManager, textParser);
+        IdleRestartScheduler restartScheduler =
+                new IdleRestartScheduler(configManager, stopServerScheduler, auditService);
         ServerRuntimeStats runtimeStats = new ServerRuntimeStats();
-        var bridge = new com.pixelmc.pixelmcmanager.bridge.BridgeAgent(statsStore, configManager, maintenanceScheduler, stopServerScheduler, restartScheduler);
+        var bridge =
+                new com.pixelmc.pixelmcmanager.bridge.BridgeAgent(
+                        statsStore,
+                        configManager,
+                        maintenanceScheduler,
+                        stopServerScheduler,
+                        restartScheduler);
 
-        MinecraftForge.EVENT_BUS.register(new WelcomeEventHandler(configManager, statsStore, auditService, scheduler, announcementScheduler, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler, bridge));
+        MinecraftForge.EVENT_BUS.register(
+                new WelcomeEventHandler(
+                        configManager,
+                        statsStore,
+                        auditService,
+                        scheduler,
+                        announcementScheduler,
+                        stopServerScheduler,
+                        maintenanceScheduler,
+                        runtimeStats,
+                        restartScheduler,
+                        bridge));
         MinecraftForge.EVENT_BUS.register(bridge);
         MinecraftForge.EVENT_BUS.register(bridge.foodBook());
-        net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus().addListener(
-                (net.minecraftforge.fml.event.config.ModConfigEvent.Reloading event) ->
-                        bridge.foodBook().configurationReloaded(event.getConfig().getModId()));
-        MinecraftForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, auditService, placeholderResolver, textParser, stopServerScheduler, maintenanceScheduler, runtimeStats, restartScheduler));
+        net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get()
+                .getModEventBus()
+                .addListener(
+                        (net.minecraftforge.fml.event.config.ModConfigEvent.Reloading event) ->
+                                bridge.foodBook()
+                                        .configurationReloaded(event.getConfig().getModId()));
+        MinecraftForge.EVENT_BUS.register(
+                new PixelMCManagerCommands(
+                        configManager,
+                        statsStore,
+                        auditService,
+                        placeholderResolver,
+                        textParser,
+                        stopServerScheduler,
+                        maintenanceScheduler,
+                        runtimeStats,
+                        restartScheduler));
 
         configManager.loadOrCreate();
         LOGGER.info("PixelMC Manager loaded.");

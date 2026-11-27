@@ -1,27 +1,23 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
-const hubRoot = process.env.PIXELMC_HUB_SOURCE_ROOT || fileURLToPath(new URL("../../../../PixelMCPlayerHub", import.meta.url));
-
-const wenzhouAdmin = process.env.WENZHOU_ADMIN_DIR
+const wenzhouSource = process.env.WENZHOU_ADMIN_DIR
   ? resolve(process.env.WENZHOU_ADMIN_DIR, "src")
   : ["../../WenZhou-Agent/admin-web/src/", "../../../../WenZhou-Agent/admin-web/src/"]
-    .map(relative => fileURLToPath(new URL(relative, import.meta.url))).find(existsSync);
-if (!wenzhouAdmin || !existsSync(wenzhouAdmin)) {
-  throw new Error("WenZhou-Agent admin-web source is required. See BUILDING.md.");
-}
+      .map(relative => fileURLToPath(new URL(relative, import.meta.url))).find(existsSync);
+if (!wenzhouSource) throw new Error("WenZhou-Agent/admin-web/src is required to build the Manager console. See BUILDING.md.");
 
 export default defineConfig({
   resolve: {
     dedupe: ["react", "react-dom", "@phosphor-icons/react", "@tiptap/react", "@tiptap/starter-kit"],
     alias: {
       "@manager-console": fileURLToPath(new URL("./src/", import.meta.url)),
-      "@wenzhou-admin": wenzhouAdmin,
-      "@hub-community-art": resolve(hubRoot, "src/community"),
-      "@hub-leaderboards-contract": resolve(hubRoot, "src/leaderboards/contract.js"),
+      "@wenzhou-admin": wenzhouSource,
+      "@hub-community-art": fileURLToPath(new URL("../../../../PixelMCPlayerHub/src/community", import.meta.url)),
+      "@hub-leaderboards-contract": fileURLToPath(new URL("../../../../PixelMCPlayerHub/src/leaderboards/contract.js", import.meta.url)),
     },
   },
   build: {
@@ -45,3 +41,4 @@ export default defineConfig({
     if(forbidden.length)throw new Error('Preview modules entered production graph: '+forbidden.join(', '));
   }},react()],
 });
+

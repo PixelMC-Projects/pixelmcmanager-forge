@@ -1,0 +1,7 @@
+{
+  "sources": [
+    "src/main/java",
+    "manager-service/src/main/java"
+  ],
+  "exclude": []
+}

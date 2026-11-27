@@ -17,7 +17,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 public final class WelcomeConfigManager {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final Gson GSON =
+            new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final String LEGACY_MOD_ID = "pixelmcwelcome";
 
     private final Logger logger;
@@ -64,7 +65,10 @@ public final class WelcomeConfigManager {
             return LoadResult.success("Config loaded.");
         } catch (Exception exception) {
             lastError = exception.getMessage();
-            logger.error("Failed to load PixelMC Manager config from {}. Keeping previous valid config.", configPath, exception);
+            logger.error(
+                    "Failed to load PixelMC Manager config from {}. Keeping previous valid config.",
+                    configPath,
+                    exception);
             return LoadResult.failure(lastError);
         }
     }
@@ -78,14 +82,23 @@ public final class WelcomeConfigManager {
         Files.writeString(configPath, GSON.toJson(config), StandardCharsets.UTF_8);
     }
 
-    public String snapshotJson() { return GSON.toJson(config); }
+    public String snapshotJson() {
+        return GSON.toJson(config);
+    }
 
     public void saveSnapshot(String json) throws IOException {
         Files.createDirectories(configPath.getParent());
-        Path temp=configPath.resolveSibling(configPath.getFileName()+".bridge-tmp");
-        Files.writeString(temp,json,StandardCharsets.UTF_8);
-        try { Files.move(temp,configPath,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING); }
-        catch (java.nio.file.AtomicMoveNotSupportedException e) { Files.move(temp,configPath,StandardCopyOption.REPLACE_EXISTING); }
+        Path temp = configPath.resolveSibling(configPath.getFileName() + ".bridge-tmp");
+        Files.writeString(temp, json, StandardCharsets.UTF_8);
+        try {
+            Files.move(
+                    temp,
+                    configPath,
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(temp, configPath, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private void sanitizeConfigJson(JsonObject root) {
@@ -115,7 +128,8 @@ public final class WelcomeConfigManager {
         }
     }
 
-    private void sanitizeInteger(JsonObject root, String sectionName, String fieldName, int fallback) {
+    private void sanitizeInteger(
+            JsonObject root, String sectionName, String fieldName, int fallback) {
         JsonElement section = root.get(sectionName);
         if (section == null || !section.isJsonObject()) {
             return;
@@ -125,8 +139,15 @@ public final class WelcomeConfigManager {
         if (field == null) {
             return;
         }
-        if (!field.isJsonPrimitive() || !field.getAsJsonPrimitive().isNumber() || !field.getAsString().matches("-?\\d+")) {
-            logger.warn("Invalid PixelMC Manager config value {}.{}={}; using default {}.", sectionName, fieldName, field, fallback);
+        if (!field.isJsonPrimitive()
+                || !field.getAsJsonPrimitive().isNumber()
+                || !field.getAsString().matches("-?\\d+")) {
+            logger.warn(
+                    "Invalid PixelMC Manager config value {}.{}={}; using default {}.",
+                    sectionName,
+                    fieldName,
+                    field,
+                    fallback);
             sectionObject.addProperty(fieldName, fallback);
         }
     }
@@ -134,7 +155,10 @@ public final class WelcomeConfigManager {
     private void migrateLegacyConfigIfNeeded() throws IOException {
         if (Files.notExists(configPath) && Files.exists(legacyConfigPath)) {
             Files.copy(legacyConfigPath, configPath, StandardCopyOption.COPY_ATTRIBUTES);
-            logger.info("Copied legacy pixelmcwelcome config from {} to {}.", legacyConfigPath, configPath);
+            logger.info(
+                    "Copied legacy pixelmcwelcome config from {} to {}.",
+                    legacyConfigPath,
+                    configPath);
         }
     }
 

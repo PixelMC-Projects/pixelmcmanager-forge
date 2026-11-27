@@ -29,7 +29,9 @@ public final class TextTemplateParser {
                 GradientMatch match = findGradient(input, index);
                 if (match != null) {
                     flush(result, buffer, style);
-                    result.append(GradientParser.render(match.text(), match.startRgb(), match.endRgb(), style));
+                    result.append(
+                            GradientParser.render(
+                                    match.text(), match.startRgb(), match.endRgb(), style));
                     index = match.endIndex();
                     continue;
                 }
@@ -95,7 +97,8 @@ public final class TextTemplateParser {
 
         String startColor = stripHash(colors[0]);
         String endColor = stripHash(colors[1]);
-        if (!LegacyFormatParser.isHexColor(startColor) || !LegacyFormatParser.isHexColor(endColor)) {
+        if (!LegacyFormatParser.isHexColor(startColor)
+                || !LegacyFormatParser.isHexColor(endColor)) {
             return null;
         }
 
@@ -104,8 +107,7 @@ public final class TextTemplateParser {
                 Integer.parseInt(startColor, 16),
                 Integer.parseInt(endColor, 16),
                 text,
-                closeIndex + GRADIENT_SUFFIX.length()
-        );
+                closeIndex + GRADIENT_SUFFIX.length());
     }
 
     private static String stripHash(String color) {
@@ -113,6 +115,5 @@ public final class TextTemplateParser {
         return normalized.startsWith("#") ? normalized.substring(1) : normalized;
     }
 
-    private record GradientMatch(int startRgb, int endRgb, String text, int endIndex) {
-    }
+    private record GradientMatch(int startRgb, int endRgb, String text, int endIndex) {}
 }

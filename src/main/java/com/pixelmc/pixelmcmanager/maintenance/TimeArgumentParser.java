@@ -10,8 +10,7 @@ public final class TimeArgumentParser {
     private static final Duration MAX_DURATION = Duration.ofHours(24);
     private static final String USAGE = "时间格式无效，请使用正整数加 s/m/h，例如 30s、10m、1h，最大 24h。";
 
-    private TimeArgumentParser() {
-    }
+    private TimeArgumentParser() {}
 
     public static Result parse(String input) {
         if (input == null || input.isBlank()) {
@@ -32,12 +31,13 @@ public final class TimeArgumentParser {
 
         Duration duration;
         try {
-            duration = switch (matcher.group(2).toLowerCase(Locale.ROOT)) {
-                case "s" -> Duration.ofSeconds(amount);
-                case "m" -> Duration.ofMinutes(amount);
-                case "h" -> Duration.ofHours(amount);
-                default -> null;
-            };
+            duration =
+                    switch (matcher.group(2).toLowerCase(Locale.ROOT)) {
+                        case "s" -> Duration.ofSeconds(amount);
+                        case "m" -> Duration.ofMinutes(amount);
+                        case "h" -> Duration.ofHours(amount);
+                        default -> null;
+                    };
         } catch (ArithmeticException exception) {
             return Result.failure("计划时间最大为 24h。");
         }

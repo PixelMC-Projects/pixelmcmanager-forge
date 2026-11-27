@@ -79,5 +79,6 @@ tools/*
 docs/*
 !docs/manual-test.md
 !docs/fortune-rpc-compatibility.md
+!docs/模组接口规范.md
 manager-service/deploy/compose.yaml
 manager-service/deploy/mcsm-settings.json
