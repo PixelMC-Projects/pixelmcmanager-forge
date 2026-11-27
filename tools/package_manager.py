@@ -9,7 +9,7 @@ def write(z,name,value):
 def main():
  version=dict(line.split('=',1) for line in (ROOT/'gradle.properties').read_text().splitlines() if '=' in line)['mod_version']
  out=ROOT/'build/distributions';out.mkdir(parents=True,exist_ok=True)
- license_files={name:ROOT/name for name in ['LICENSE','LICENSE-EXCEPTION.md','NOTICE']}
+ license_files={name:ROOT/name for name in ['LICENSE','NOTICE']}
  files={'service.jar':ROOT/f'build/manager-service/pixelmc-manager-service-{version}.jar','README.md':ROOT/'manager-service/README.md','manager.example.json':ROOT/'manager-service/deploy/manager.example.json','Dockerfile':ROOT/'manager-service/deploy/Dockerfile','THIRD_PARTY.md':ROOT/'THIRD_PARTY.md',**license_files}
  service=out/f'pixelmc-manager-service-{version}.zip'
  with zipfile.ZipFile(service,'w',zipfile.ZIP_DEFLATED) as z:

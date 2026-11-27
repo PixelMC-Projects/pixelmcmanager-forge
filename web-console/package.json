@@ -25,5 +25,5 @@
     "uplot": "^1.6.32",
     "vite": "6.4.2"
   },
-  "license": "AGPL-3.0-only"
+  "license": "Apache-2.0"
 }

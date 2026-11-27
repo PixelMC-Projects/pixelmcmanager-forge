@@ -59,6 +59,6 @@ To restore, stop all writers and prepare an **empty database and empty data dire
 ---
 
 原作者 / Original author: [zcpu · PixelMC](https://github.com/zcpu954861).
-[AGPL-3.0-only](../LICENSE) · [Minecraft linking permission](../LICENSE-EXCEPTION.md).
-保留署名；分发修改版或以修改版提供联网服务时按许可证提供对应源码。
-Retain attribution and provide corresponding source as required by the license.
+[Apache-2.0](../LICENSE) · [NOTICE](../NOTICE).
+按许可证保留版权、许可与署名声明，并对修改文件标注变更。
+Retain copyright, license, and attribution notices, and identify modified files as required by the license.

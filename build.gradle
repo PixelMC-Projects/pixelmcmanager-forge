@@ -190,7 +190,7 @@ tasks.register('buildManagerWeb', Exec) {
 tasks.named('processManagerServiceResources').configure {
     dependsOn 'buildManagerWeb'
     from(wenzhouAdmin) {
-        include 'LICENSE', 'LICENSE-EXCEPTION.md', 'NOTICE.md'
+        include 'LICENSE', 'NOTICE.md'
         into 'licenses/wenzhou-admin'
     }
     from(new File(wenzhouRoot, 'src/main/resources')) { include 'assets/wenzhouai/default-policy.json' }
@@ -243,7 +243,6 @@ tasks.named('check').configure { dependsOn 'lifecycleShutdownTest' }
 tasks.withType(Jar).configureEach {
     from(rootProject.file('LICENSE')) { into 'META-INF/pixelmc' }
     from(rootProject.file('NOTICE')) { into 'META-INF/pixelmc' }
-    from(rootProject.file('LICENSE-EXCEPTION.md')) { into 'META-INF/pixelmc' }
 }
 
 
